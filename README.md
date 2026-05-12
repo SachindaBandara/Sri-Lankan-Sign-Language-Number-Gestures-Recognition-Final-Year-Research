@@ -26,17 +26,9 @@ backend/
   utils/
     inference_engine.py
     activity_engine.py
-  app.py
   flask_app.py
   run.py
   requirements.txt
-frontend/
-  src/
-    components/
-    pages/
-    services/
-  package.json
-  vite.config.js
 Models/
   0-9_numbers_svm_model.joblib
   10-19_numbers_svm_model.joblib

@@ -11,10 +11,12 @@ Original FastAPI design kept exactly:
   - Same temp-file lifecycle (write → predict → unlink in finally)
 """
 
-import tempfile
+import base64
 import shutil
+import tempfile
 from pathlib import Path
 
+import cv2
 import numpy as np
 from flask import Blueprint, jsonify, request
 
@@ -26,24 +28,81 @@ prediction_bp = Blueprint("prediction", __name__)
 # ── Model registry ────────────────────────────────────────────────────────────
 # Mirror numbers_inference_component.py exactly.
 
-script_dir   = Path(__file__).resolve().parent
+script_dir = Path(__file__).resolve().parent
 project_root = script_dir.parent
-models_dir   = project_root / "models"
+models_dir = project_root.parent / "models"
 
 model_filenames = {
-    "0-9":  "0-9_numbers_model.joblib",
+    "0-9": "0-9_numbers_model.joblib",
     "10-19": "10-19_numbers_model.joblib",
     "20-29": "20-29_numbers_model.joblib",
     "30-39": "30-39_numbers_model.joblib",
     "40-50": "40-50_numbers_model.joblib",
 }
 
-inference_models = {}
-for key, fname in model_filenames.items():
-    model_file = models_dir / fname
-    if not model_file.is_file():
-        raise FileNotFoundError(f"[{key}] model not found: {model_file}")
-    inference_models[key] = SignNumberInference(model_file)
+
+class InferenceManager:
+    def __init__(self):
+        self._models = {}
+
+    def model_key_for_number(self, number: int) -> str:
+        if 0 <= number <= 9:
+            return "0-9"
+        if 10 <= number <= 19:
+            return "10-19"
+        if 20 <= number <= 29:
+            return "20-29"
+        if 30 <= number <= 39:
+            return "30-39"
+        if 40 <= number <= 50:
+            return "40-50"
+        raise ValueError("Number must be between 0 and 50.")
+
+    def _get_model(self, model_key: str) -> SignNumberInference:
+        if model_key not in model_filenames:
+            raise ValueError("Invalid model range selected.")
+
+        if model_key not in self._models:
+            model_file = models_dir / model_filenames[model_key]
+            if not model_file.is_file():
+                raise FileNotFoundError(f"[{model_key}] model not found: {model_file}")
+            self._models[model_key] = SignNumberInference(model_file)
+
+        return self._models[model_key]
+
+    def predict_video(self, video_path: str, model_key: str):
+        model = self._get_model(model_key)
+        predicted_number = model.predict(video_path)
+        return int(predicted_number) if isinstance(predicted_number, np.integer) else predicted_number
+
+    def predict_frame(self, frame_base64: str, model_key: str):
+        if "," in frame_base64:
+            frame_base64 = frame_base64.split(",", 1)[1]
+
+        frame_bytes = base64.b64decode(frame_base64)
+        frame_array = np.frombuffer(frame_bytes, np.uint8)
+        frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
+        if frame is None:
+            raise ValueError("Invalid frame data.")
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".avi") as temp:
+            temp_path = temp.name
+
+        try:
+            height, width = frame.shape[:2]
+            writer = cv2.VideoWriter(temp_path, cv2.VideoWriter_fourcc(*"MJPG"), 5, (width, height))
+            if not writer.isOpened():
+                raise RuntimeError("Unable to encode frame for prediction.")
+
+            for _ in range(8):
+                writer.write(frame)
+            writer.release()
+            return self.predict_video(temp_path, model_key)
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+
+
+inference_manager = InferenceManager()
 
 
 # ── Route ─────────────────────────────────────────────────────────────────────
@@ -82,9 +141,12 @@ def validate_number():
         return jsonify({"error": "Missing model_key."}), 400
 
     # ── Model lookup (matches original behaviour exactly) ─────────────────────
-    model = inference_models.get(model_key)
-    if model is None:
-        return jsonify({"error": "Invalid model range selected."}), 400
+    try:
+        model = inference_manager._get_model(model_key)
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 503
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     # ── Temp-file lifecycle (matches original exactly) ────────────────────────
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp:

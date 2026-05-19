@@ -33,11 +33,11 @@ project_root = script_dir.parent
 models_dir = project_root.parent / "models"
 
 model_filenames = {
-    "0-9": "0-9_numbers_model.joblib",
-    "10-19": "10-19_numbers_model.joblib",
-    "20-29": "20-29_numbers_model.joblib",
-    "30-39": "30-39_numbers_model.joblib",
-    "40-50": "40-50_numbers_model.joblib",
+    "0-9": "0-9_numbers_svm_model.joblib",
+    "10-19": "10-19_numbers_svm_model.joblib",
+    "20-29": "20-29_numbers_svm_model.joblib",
+    "30-39": "30-39_numbers_svm_model.joblib",
+    "40-50": "40-50_numbers_svm_model.joblib",
 }
 
 

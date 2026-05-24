@@ -4,46 +4,58 @@ import WebcamRecorder from "../components/WebcamRecorder";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { generateQuestion, validateActivityAnswer } from "../services/api";
+import { generateQuestion, predictNumber, validateActivityAnswer } from "../services/api";
 
 export default function ActivityPage({ operation, title }) {
-  const webcamRef = useRef(null);
   const [problem, setProblem] = useState(null);
-  const [isStreaming, setIsStreaming] = useState(true);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [livePrediction, setLivePrediction] = useState("--");
   const [result, setResult] = useState(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const isRequestInFlightRef = useRef(false);
 
-  const loadProblem = useCallback(async () => {
+  const loadProblem = async () => {
     setError("");
     setResult(null);
     const data = await generateQuestion(operation);
     setProblem(data);
-  }, [operation]);
+  };
 
   useEffect(() => {
     loadProblem().catch((err) => setError(err.message));
-  }, [loadProblem]);
+  }, [operation]);
+
+  const handleFrame = useCallback(
+    async (frameDataUrl) => {
+      if (isRequestInFlightRef.current) return;
+      isRequestInFlightRef.current = true;
+
+      try {
+        const prediction = await predictNumber(frameDataUrl, "auto");
+        setLivePrediction(String(prediction.predicted_number));
+      } catch (err) {
+        // Keep stream smooth for repeated frame inference during live mode.
+        if (err.message && err.message !== "No hand landmarks detected") {
+          setError(err.message);
+        }
+      }
+      isRequestInFlightRef.current = false;
+    },
+    [setLivePrediction]
+  );
 
   const submitLiveAnswer = async () => {
-    if (!problem || !webcamRef.current) {
-      return;
-    }
-
+    if (!problem || livePrediction === "--") return;
     setLoading(true);
     setError("");
     try {
-      const frame = webcamRef.current.captureFrame();
-      if (!frame) {
-        throw new Error("Camera frame is not ready yet.");
-      }
-
       const evaluation = await validateActivityAnswer({
         operation,
         left: problem.left,
         right: problem.right,
-        frame,
+        predictedNumber: Number(livePrediction),
       });
       setResult(evaluation);
       setScore((prev) => ({
@@ -77,19 +89,20 @@ export default function ActivityPage({ operation, title }) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <WebcamRecorder
-          ref={webcamRef}
+          onFrameCapture={handleFrame}
           isStreaming={isStreaming}
           onToggleStreaming={() => setIsStreaming((prev) => !prev)}
-          buttonLabel={isStreaming ? "Pause Camera" : "Resume Camera"}
+          buttonLabel={isStreaming ? "Stop Camera" : "Start Camera"}
         />
         <Card className="border-slate-200 bg-white">
           <CardContent className="space-y-4 py-5 sm:py-6">
-            <p className="text-sm text-slate-500">Submit the current camera frame to validate your answer.</p>
+            <p className="text-sm text-slate-500">Live Predicted Number (0-50)</p>
+            <p className="text-5xl font-bold text-indigo-700">{livePrediction}</p>
             <p className="text-sm text-slate-500">
               Score: {score.correct}/{score.total}
             </p>
-            <Button onClick={submitLiveAnswer} disabled={loading || !problem}>
-              {loading ? "Checking..." : "Check Answer"}
+            <Button onClick={submitLiveAnswer} disabled={loading || livePrediction === "--"}>
+              Submit Predicted Answer
             </Button>
           </CardContent>
         </Card>

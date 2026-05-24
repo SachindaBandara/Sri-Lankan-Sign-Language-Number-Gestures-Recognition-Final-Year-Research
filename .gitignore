@@ -86,4 +86,4 @@ tmp/
 
 # Models (if they're too large to commit)
 # Uncomment if you don't want to track model files
-Models/
+models/

@@ -13,8 +13,15 @@ async function postJson(path, payload) {
   return data;
 }
 
-export function predictNumber(frame, modelKey = "auto") {
-  return postJson("/predict-number", { frame, model_key: modelKey });
+/**
+ * Send a base64-encoded video (≈5 s) to the prediction endpoint.
+ * The backend evaluates all models and returns the most confident result.
+ *
+ * @param {string} videoBase64 - data:<mime>;base64,<data> string from FileReader
+ * @returns {Promise<{ predicted_number: number, model_key: string, confidence: number }>}
+ */
+export function predictNumber(videoBase64) {
+  return postJson("/predict-number", { video: videoBase64 });
 }
 
 export function generateQuestion(operation) {

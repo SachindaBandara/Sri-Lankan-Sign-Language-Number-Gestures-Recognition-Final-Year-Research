@@ -1,90 +1,88 @@
 import { useCallback, useState } from "react";
-import { Sparkles, Activity } from "lucide-react";
 import WebcamRecorder from "../components/WebcamRecorder";
+import { predictNumber } from "../services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { predictNumber } from "../services/api";
+import { Sparkles, Activity } from "lucide-react";
 
 export default function NumberIdentificationPage() {
   const [prediction, setPrediction] = useState(null);
   const [confidence, setConfidence] = useState(null);
   const [modelKey, setModelKey] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleVideo = useCallback(async (videoBase64) => {
-    setIsLoading(true);
+    setLoading(true);
     setError("");
+
+    // reset old result immediately
+    setPrediction(null);
+    setConfidence(null);
+    setModelKey(null);
 
     try {
       const data = await predictNumber(videoBase64);
-      setPrediction(String(data.predicted_number));
-      setConfidence(data.confidence != null ? Math.round(data.confidence * 100) : null);
-      setModelKey(data.model_key ?? null);
+
+      setPrediction(data.predicted_number);
+      setConfidence(Math.round((data.confidence || 0) * 100));
+      setModelKey(data.model_key);
+
     } catch (err) {
-      if (err.message !== "No hand landmarks detected in the video") {
-        setError(err.message);
-      } else {
-        setError("No hand detected — make sure your hand is visible throughout the recording.");
-      }
+      setError(
+        err.message === "No hand landmarks detected in the video"
+          ? "No hand detected during recording"
+          : err.message
+      );
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   }, []);
 
   return (
-    <section className="space-y-4 sm:space-y-6">
-      {/* Header card */}
-      <Card className="border-slate-200 bg-white">
-        <CardHeader className="space-y-1">
-          <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
-            <Sparkles className="h-5 w-5 text-blue-600" />
-            Number Identification
+    <section className="space-y-6">
+
+      {/* header */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles />
+            Sign Number Recognition (3 seconds)
           </CardTitle>
-          <p className="text-sm text-slate-500">
-            Record a 5-second gesture — all models are evaluated automatically and the most confident result is shown.
+          <p className="text-sm text-gray-500">
+            Show dynamic sign gesture for 3 seconds
           </p>
         </CardHeader>
       </Card>
 
-      {/* Main content */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid lg:grid-cols-2 gap-4">
+
         <WebcamRecorder onVideoCapture={handleVideo} />
 
-        {/* Result card */}
-        <Card className="flex min-h-[240px] flex-col items-center justify-center border-0 bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg">
-          <CardContent className="w-full py-8">
-            {isLoading ? (
-              <div className="flex flex-col items-center gap-3">
-                <Activity className="h-8 w-8 animate-pulse text-blue-200" />
-                <p className="text-sm text-blue-200">Analysing gesture…</p>
-              </div>
+        <Card className="flex items-center justify-center bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
+          <CardContent className="text-center">
+
+            {loading ? (
+              <>
+                <Activity className="animate-spin mx-auto mb-2" />
+                <p>Processing gesture...</p>
+              </>
             ) : (
               <>
-                <div className="mb-1 text-center text-sm font-medium tracking-wide text-blue-200 uppercase">
-                  Identified Number
-                </div>
-                <div className="text-center text-7xl font-extrabold tracking-tight sm:text-8xl">
+                <div className="text-sm opacity-80">Predicted Number</div>
+                <div className="text-7xl font-bold">
                   {prediction ?? "--"}
                 </div>
 
-                {/* Confidence + model badge — shown only after a successful prediction */}
                 {prediction !== null && (
-                  <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs text-blue-100">
-                    {confidence !== null && (
-                      <span className="rounded-full bg-white/15 px-3 py-1">
-                        Confidence: {confidence}%
-                      </span>
-                    )}
-                    {modelKey && (
-                      <span className="rounded-full bg-white/15 px-3 py-1">
-                        Model: {modelKey}
-                      </span>
-                    )}
+                  <div className="mt-4 text-sm space-x-2">
+                    <span>Confidence: {confidence}%</span>
+                    <span>Model: {modelKey}</span>
                   </div>
                 )}
               </>
             )}
+
           </CardContent>
         </Card>
       </div>
@@ -94,6 +92,7 @@ export default function NumberIdentificationPage() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
     </section>
   );
 }

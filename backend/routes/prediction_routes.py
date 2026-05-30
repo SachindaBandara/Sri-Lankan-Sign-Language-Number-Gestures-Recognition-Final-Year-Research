@@ -7,7 +7,7 @@ from utils.inference_engine import InferenceManager
 
 prediction_bp = Blueprint("prediction", __name__)
 project_root = Path(__file__).resolve().parents[2]
-models_dir = project_root / "Models"
+models_dir = project_root / "models"
 inference_manager = InferenceManager(models_dir=models_dir)
 
 
@@ -16,7 +16,7 @@ def predict_number():
     """
     Expect a JSON body:
         {
-            "video": "<base64-encoded video, ~5 seconds>"
+            "video": "<base64-encoded video, ~3 seconds>"
         }
 
     The endpoint decodes the video, samples frames at a fixed rate, runs all

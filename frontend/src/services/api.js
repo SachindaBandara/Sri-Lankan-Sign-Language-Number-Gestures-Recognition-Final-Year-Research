@@ -21,6 +21,11 @@ async function postJson(path, payload) {
  * @returns {Promise<{ predicted_number: number, model_key: string, confidence: number }>}
  */
 export function predictNumber(videoBase64) {
+  // optional safety check
+  if (!videoBase64 || videoBase64.length < 1000) {
+    throw new Error("Video too short or invalid");
+  }
+
   return postJson("/predict-number", { video: videoBase64 });
 }
 

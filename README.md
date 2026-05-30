@@ -1,43 +1,65 @@
-# Sign Language Number Recognition (0-50)
+<!--
+  Comprehensive README for
+  "Sri-Lankan Sign Language Number Gestures Recognition"
+  Replaces the previous brief README with detailed setup, API, and contribution notes.
+-->
 
-Full-stack application for recognizing sign language numbers from **0 to 50** using webcam input.
+# Sri-Lankan Sign Language — Number Gestures Recognition (0–50)
 
-- **Backend:** Flask, MediaPipe, OpenCV, NumPy/Pandas, Joblib
-- **Frontend:** React (Vite), Tailwind, webcam capture via browser APIs
-- **Models:** five range-based trained models (`0-9`, `10-19`, `20-29`, `30-39`, `40-50`)
+Short project overview: a full-stack web application that recognizes Sri Lankan Sign Language number gestures (0 through 50) from a webcam feed and provides an interactive learning/assessment activity for basic arithmetic using recognized signs.
 
-In addition to direct number prediction, the app includes arithmetic learning activities (addition, subtraction, multiplication, division) that validate answers using recognized signs.
+Key components:
+
+- Backend: Flask API performing MediaPipe-based hand landmark extraction and prediction using range-based SVM models (Joblib).
+- Frontend: React (Vite) single-page app with webcam capture, live preview, and activity UI using Tailwind CSS.
+- Models: Five pre-trained models covering ranges 0–9, 10–19, 20–29, 30–39, 40–50 stored as Joblib files.
+
+Table of contents
+- Overview
+- Features
+- Project structure
+- Getting started (quick start)
+- Backend: install & run
+- Frontend: install & run
+- API reference
+- Models & inference details
+- Development notes
+- Troubleshooting
+- Contributing
+- License & contact
 
 ## Features
 
-- Real-time webcam-based number recognition
-- Automatic model selection across all number ranges (`model_key: auto`)
-- Optional fixed-range model selection (`0-9`, `10-19`, `20-29`, `30-39`, `40-50`)
-- Arithmetic question generation for four operations
-- Answer validation workflow for activity mode
+- Real-time webcam number recognition (0–50)
+- Automatic model selection (`auto`) or explicit range selection
+- Arithmetic activity: generate questions and validate answers using recognized numbers
+- Lightweight model architecture designed for real-time inference on CPU
 
-## Project Structure
+## Project structure
 
-```text
+Top-level layout (important files and folders):
+
+```
+README.md
 backend/
+  app.py
+  run.py
+  requirements.txt
   routes/
     prediction_routes.py
     activity_routes.py
   utils/
     inference_engine.py
     activity_engine.py
-  app.py
-  flask_app.py
-  run.py
-  requirements.txt
 frontend/
+  index.html
+  package.json
   src/
+    App.jsx
+    main.jsx
     components/
     pages/
-    services/
-  package.json
-  vite.config.js
-Models/
+models/
   0-9_numbers_svm_model.joblib
   10-19_numbers_svm_model.joblib
   20-29_numbers_svm_model.joblib
@@ -45,52 +67,39 @@ Models/
   40-50_numbers_svm_model.joblib
 ```
 
-## Prerequisites
+Note: model files live in the `models/` folder (named above). The backend expects them accessible at startup.
 
-- **Python** 3.9+ recommended
-- **Node.js** 18+ and npm
-- Webcam/camera access enabled in browser
+## Getting started (Quick start)
 
-## Setup
+Prerequisites
 
-### 1) Backend (Flask API)
+- Python 3.9+ (3.10 recommended)
+- Node.js 18+ and npm or yarn
+- A webcam and a browser that allows camera access (HTTPS or localhost)
 
-From the project root:
+1) Clone the repository
+
+```bash
+git clone https://github.com/SachindaBandara/Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research.git
+cd Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research
+```
+
+2) Start the backend
 
 ```bash
 cd backend
 python -m venv .venv
-```
-
-Activate virtual environment:
-
-- **Windows (PowerShell):**
-  ```powershell
-  .\.venv\Scripts\Activate.ps1
-  ```
-- **macOS/Linux:**
-  ```bash
-  source .venv/bin/activate
-  ```
-
-Install dependencies and run:
-
-```bash
+# Windows (PowerShell)
+.\.venv\Scripts\Activate.ps1
+# macOS / Linux
+# source .venv/bin/activate
 pip install -r requirements.txt
 python run.py
 ```
 
-Backend runs on `http://localhost:5000`.
+By default the API serves on `http://localhost:5000`.
 
-Health check:
-
-```bash
-curl http://localhost:5000/health
-```
-
-### 2) Frontend (React + Vite)
-
-In a new terminal:
+3) Start the frontend
 
 ```bash
 cd frontend
@@ -98,113 +107,169 @@ npm install
 npm run dev
 ```
 
-Frontend runs on `http://localhost:5173`.
+Open the frontend app at the Vite-provided URL (commonly `http://localhost:5173`). The frontend uses `http://localhost:5000` as the API base by default.
 
-## API Endpoints
+## Backend: install & run (details)
 
-### `POST /predict-number`
+- Virtual environment recommended. Dependencies listed in `backend/requirements.txt` include `flask`, `mediapipe`, `opencv-python`, `numpy`, `scikit-learn`, `joblib`, etc.
+- `run.py` boots the Flask app used by the frontend and for API testing.
 
-Predict sign number from a base64 frame.
+Environment variables
 
-Request body:
+- `FLASK_ENV` (optional): `development` or `production`.
+- `MODEL_DIR` (optional): path to model files; defaults to `../models` relative to the `backend` folder.
+
+Health check
+
+```bash
+curl http://localhost:5000/health
+```
+
+## Frontend: install & run (details)
+
+- The frontend is a Vite React project under `frontend/`.
+- The API base URL is configured in `frontend/src/services/api.js` — change it if your backend runs on a different host/port.
+
+Common scripts
+
+- `npm run dev` — start dev server
+- `npm run build` — build production assets
+
+## API reference
+
+All endpoints are relative to the backend root (default `http://localhost:5000`).
+
+1) POST /predict-number
+
+Description: Submit a camera frame (base64) or request explicit model prediction.
+
+Request JSON (frame mode):
 
 ```json
 {
-  "frame": "<base64-image-data>",
-  "model_key": "auto"
+  "frame": "<base64-data>",
+  "model_key": "auto"  // optional, or one of: "0-9","10-19","20-29","30-39","40-50"
 }
 ```
 
-`model_key` supports:
-- `auto`
-- `0-9`
-- `10-19`
-- `20-29`
-- `30-39`
-- `40-50`
-
-Response:
+Response (success):
 
 ```json
 {
-  "predicted_number": 17
+  "predicted_number": 17,
+  "model_key": "10-19",
+  "confidence": 0.92
 }
 ```
 
-### `POST /activity/generate-question`
+2) POST /activity/generate-question
 
-Generate arithmetic question.
+Description: Generate a random arithmetic question for learning or testing.
 
-Request body:
-
-```json
-{
-  "operation": "addition"
-}
-```
-
-Supported `operation` values:
-- `addition`
-- `subtraction`
-- `multiplication`
-- `division`
-
-Response example:
+Request example:
 
 ```json
-{
-  "operation": "addition",
-  "left": 4,
-  "right": 2,
-  "operator": "+",
-  "answer": 6
-}
-```
-
-### `POST /activity/validate-answer`
-
-Validate predicted answer for a generated question.
-
-You can send either:
-- `predicted_number` directly, or
-- `frame` and let backend infer prediction automatically
-
-Request body example:
-
-```json
-{
-  "operation": "addition",
-  "left": 4,
-  "right": 2,
-  "predicted_number": 6
-}
+{ "operation": "addition" }
 ```
 
 Response example:
 
 ```json
 {
-  "left": 4,
-  "right": 2,
+  "operation": "addition",
+  "left": 7,
+  "right": 3,
   "operator": "+",
-  "expected_answer": 6,
-  "predicted_answer": 6,
+  "answer": 10
+}
+```
+
+3) POST /activity/validate-answer
+
+Description: Validate a submitted answer — either provide `predicted_number` or a `frame`.
+
+Request example (predicted number):
+
+```json
+{
+  "operation": "addition",
+  "left": 7,
+  "right": 3,
+  "predicted_number": 10
+}
+```
+
+Response example:
+
+```json
+{
+  "left": 7,
+  "right": 3,
+  "operator": "+",
+  "expected_answer": 10,
+  "predicted_answer": 10,
   "is_correct": true
 }
 ```
 
-## Model Selection Logic
+Notes: See `backend/routes/` for implementation details and additional fields.
 
-- `auto` mode runs inference across all 5 models and returns the prediction with highest confidence.
-- In activity validation with frame input, backend chooses model range from expected answer (0-50) before inference.
+## Models & inference details
 
-## Notes and Troubleshooting
+- Models are range-partitioned: the system uses five independent models covering 0–9, 10–19, 20–29, 30–39, and 40–50. Each model expects the same landmark-based feature vector produced by MediaPipe hand landmarks processing.
+- `auto` mode runs inference across all models and picks the most confident prediction.
+- Model files are in `models/` and are expected to be named like `0-9_numbers_svm_model.joblib`.
 
-- Ensure all model files are present in `Models/` before starting backend.
-- If camera does not start, check browser permissions and secure origin settings.
-- Frontend currently uses API base URL `http://localhost:5000` in `frontend/src/services/api.js`.
-- If you get `No hand landmarks detected`, improve lighting, hand visibility, and camera framing.
+If you retrain or replace models, ensure they accept the same input vector shape.
+
+## Development notes
+
+- Main inference logic: [backend/utils/inference_engine.py](backend/utils/inference_engine.py#L1)
+- Activity/question logic: [backend/utils/activity_engine.py](backend/utils/activity_engine.py#L1)
+- API routes: [backend/routes/prediction_routes.py](backend/routes/prediction_routes.py#L1) and [backend/routes/activity_routes.py](backend/routes/activity_routes.py#L1)
+
+When editing the inference pipeline, run the backend locally and use the frontend camera UI to validate predictions in real time.
+
+## Troubleshooting
+
+- "No hand landmarks detected": improve lighting, move hand closer to camera, ensure entire hand is in frame.
+- Slow performance: try reducing input resolution or run the backend on a machine with better CPU; MediaPipe uses CPU by default.
+- Model file not found: ensure `models/` exists and files are named exactly as expected.
+
+## Docker (optional)
+
+You can containerize backend and frontend separately. Example Dockerfile for backend is not included; to create one:
+
+1. Create `backend/Dockerfile` using a Python base image, copy `backend/` and `models/`, install requirements and run `run.py`.
+2. Build and run with docker build/run or docker-compose.
+
+## Contributing
+
+- Open issues for bugs or feature requests.
+- For code changes, fork the repo, create a branch, and open a pull request with a clear summary of changes.
+
+Suggested steps:
+
+1. Create a branch: `git checkout -b feat/your-feature`
+2. Implement and test changes
+3. Run linters and formatters (if any)
+4. Push and create a PR
 
 ## License
 
-Add your preferred license information here.
+This repository does not include a license file by default. Add a `LICENSE` file with your preferred license (MIT, Apache-2.0, etc.).
+
+## Contact / Acknowledgements
+
+- Author: Sachinda Bandara
+- Repository: https://github.com/SachindaBandara/Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research
+
+If you'd like, I can also:
+
+- add a short CONTRIBUTING.md
+- create a Dockerfile for the backend
+- add CI workflow to run lint/tests
+
+---
+
+If you want adjustments (more examples, expanded API docs, or Dockerfiles), tell me which sections to expand.

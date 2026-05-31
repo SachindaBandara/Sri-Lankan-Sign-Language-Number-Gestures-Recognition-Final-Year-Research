@@ -1,105 +1,104 @@
-<!--
-  Comprehensive README for
-  "Sri-Lankan Sign Language Number Gestures Recognition"
-  Replaces the previous brief README with detailed setup, API, and contribution notes.
--->
+# Sri Lankan Sign Language Number Gestures Recognition
 
-# Sri-Lankan Sign Language — Number Gestures Recognition (0–50)
-
-Short project overview: a full-stack web application that recognizes Sri Lankan Sign Language number gestures (0 through 50) from a webcam feed and provides an interactive learning/assessment activity for basic arithmetic using recognized signs.
-
-Key components:
-
-- Backend: Flask API performing MediaPipe-based hand landmark extraction and prediction using range-based SVM models (Joblib).
-- Frontend: React (Vite) single-page app with webcam capture, live preview, and activity UI using Tailwind CSS.
-- Models: Five pre-trained models covering ranges 0–9, 10–19, 20–29, 30–39, 40–50 stored as Joblib files.
-
-Table of contents
-- Overview
-- Features
-- Project structure
-- Getting started (quick start)
-- Backend: install & run
-- Frontend: install & run
-- API reference
-- Models & inference details
-- Development notes
-- Troubleshooting
-- Contributing
-- License & contact
+A full-stack web application that recognizes Sri Lankan Sign Language number gestures from a webcam feed and supports arithmetic practice with activity-based feedback.
 
 ## Features
 
-- Real-time webcam number recognition (0–50)
-- Automatic model selection (`auto`) or explicit range selection
-- Arithmetic activity: generate questions and validate answers using recognized numbers
-- Lightweight model architecture designed for real-time inference on CPU
+- Real-time webcam-based number recognition for numbers 0 to 50
+- Arithmetic activity practice for addition, subtraction, multiplication, and division
+- Separate activity performance report page with question, correct answer, submitted answer, result, and points
+- English and Sinhala language support
+- Kid-friendly UI mode
+- Live camera preview with recording overlay and processing feedback
 
-## Project structure
+## Tech Stack
 
-Top-level layout (important files and folders):
+- Frontend: React, Vite, Tailwind CSS, React Router
+- Backend: Flask, Flask-CORS
+- Computer vision: MediaPipe, OpenCV
+- Model/runtime: NumPy, Pandas, Joblib
 
-```
+## Project Structure
+
+```text
 README.md
 backend/
   app.py
   run.py
   requirements.txt
+  app/
+    routes/
+    services/
+    utils/
   routes/
-    prediction_routes.py
+    __init__.py
     activity_routes.py
+    prediction_routes.py
   utils/
-    inference_engine.py
+    __init__.py
     activity_engine.py
+    inference_engine.py
 frontend/
   index.html
   package.json
+  vite.config.js
   src/
     App.jsx
     main.jsx
+    styles.css
     components/
     pages/
+    services/
 models/
-  0-9_numbers_svm_model.joblib
-  10-19_numbers_svm_model.joblib
-  20-29_numbers_svm_model.joblib
-  30-39_numbers_svm_model.joblib
-  40-50_numbers_svm_model.joblib
+  0-9_numbers_rf_model.joblib
+  10-19_numbers_rf_model.joblib
+  20-29_numbers_rf_model.joblib
+  30-39_numbers_rf_model.joblib
+  40-50_numbers_rf_model.joblib
 ```
 
-Note: model files live in the `models/` folder (named above). The backend expects them accessible at startup.
+## Prerequisites
 
-## Getting started (Quick start)
+- Python 3.9 or newer
+- Node.js 18 or newer
+- npm
+- A webcam
+- A browser that allows camera access on localhost
 
-Prerequisites
+## Setup
 
-- Python 3.9+ (3.10 recommended)
-- Node.js 18+ and npm or yarn
-- A webcam and a browser that allows camera access (HTTPS or localhost)
-
-1) Clone the repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/SachindaBandara/Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research.git
 cd Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research
 ```
 
-2) Start the backend
+### 2. Start the backend
 
 ```bash
 cd backend
 python -m venv .venv
-# Windows (PowerShell)
+```
+
+PowerShell:
+
+```powershell
 .\.venv\Scripts\Activate.ps1
-# macOS / Linux
-# source .venv/bin/activate
+```
+
+Install dependencies and run the API:
+
+```bash
 pip install -r requirements.txt
 python run.py
 ```
 
-By default the API serves on `http://localhost:5000`.
+The Flask server runs at `http://localhost:5000`.
 
-3) Start the frontend
+### 3. Start the frontend
+
+Open a second terminal:
 
 ```bash
 cd frontend
@@ -107,52 +106,49 @@ npm install
 npm run dev
 ```
 
-Open the frontend app at the Vite-provided URL (commonly `http://localhost:5173`). The frontend uses `http://localhost:5000` as the API base by default.
+The Vite app usually runs at `http://localhost:5173`.
 
-## Backend: install & run (details)
+## Usage
 
-- Virtual environment recommended. Dependencies listed in `backend/requirements.txt` include `flask`, `mediapipe`, `opencv-python`, `numpy`, `scikit-learn`, `joblib`, etc.
-- `run.py` boots the Flask app used by the frontend and for API testing.
+1. Open the frontend in your browser.
+2. Allow camera access.
+3. Use the Number Identification page to record a gesture and predict the number.
+4. Use the Activities page to practice arithmetic with sign gestures.
+5. Open the Activity Report page to review performance history.
 
-Environment variables
+## Frontend Scripts
 
-- `FLASK_ENV` (optional): `development` or `production`.
-- `MODEL_DIR` (optional): path to model files; defaults to `../models` relative to the `backend` folder.
-
-Health check
+From the `frontend/` folder:
 
 ```bash
-curl http://localhost:5000/health
+npm run dev
+npm run build
+npm run preview
 ```
 
-## Frontend: install & run (details)
+## Backend API
 
-- The frontend is a Vite React project under `frontend/`.
-- The API base URL is configured in `frontend/src/services/api.js` — change it if your backend runs on a different host/port.
+### `GET /health`
+Returns server health status.
 
-Common scripts
+Example response:
 
-- `npm run dev` — start dev server
-- `npm run build` — build production assets
+```json
+{ "status": "ok" }
+```
 
-## API reference
+### `POST /predict-number`
+Predicts a number from a webcam video payload.
 
-All endpoints are relative to the backend root (default `http://localhost:5000`).
-
-1) POST /predict-number
-
-Description: Submit a camera frame (base64) or request explicit model prediction.
-
-Request JSON (frame mode):
+Example request:
 
 ```json
 {
-  "frame": "<base64-data>",
-  "model_key": "auto"  // optional, or one of: "0-9","10-19","20-29","30-39","40-50"
+  "video": "data:video/webm;base64,..."
 }
 ```
 
-Response (success):
+Example response:
 
 ```json
 {
@@ -162,17 +158,18 @@ Response (success):
 }
 ```
 
-2) POST /activity/generate-question
+### `POST /activity/generate-question`
+Generates a new arithmetic question.
 
-Description: Generate a random arithmetic question for learning or testing.
-
-Request example:
+Example request:
 
 ```json
-{ "operation": "addition" }
+{
+  "operation": "addition"
+}
 ```
 
-Response example:
+Example response:
 
 ```json
 {
@@ -184,11 +181,10 @@ Response example:
 }
 ```
 
-3) POST /activity/validate-answer
+### `POST /activity/validate-answer`
+Validates a submitted answer.
 
-Description: Validate a submitted answer — either provide `predicted_number` or a `frame`.
-
-Request example (predicted number):
+Example request:
 
 ```json
 {
@@ -199,7 +195,7 @@ Request example (predicted number):
 }
 ```
 
-Response example:
+Example response:
 
 ```json
 {
@@ -212,64 +208,30 @@ Response example:
 }
 ```
 
-Notes: See `backend/routes/` for implementation details and additional fields.
+## Notes
 
-## Models & inference details
-
-- Models are range-partitioned: the system uses five independent models covering 0–9, 10–19, 20–29, 30–39, and 40–50. Each model expects the same landmark-based feature vector produced by MediaPipe hand landmarks processing.
-- `auto` mode runs inference across all models and picks the most confident prediction.
-- Model files are in `models/` and are expected to be named like `0-9_numbers_svm_model.joblib`.
-
-If you retrain or replace models, ensure they accept the same input vector shape.
-
-## Development notes
-
-- Main inference logic: [backend/utils/inference_engine.py](backend/utils/inference_engine.py#L1)
-- Activity/question logic: [backend/utils/activity_engine.py](backend/utils/activity_engine.py#L1)
-- API routes: [backend/routes/prediction_routes.py](backend/routes/prediction_routes.py#L1) and [backend/routes/activity_routes.py](backend/routes/activity_routes.py#L1)
-
-When editing the inference pipeline, run the backend locally and use the frontend camera UI to validate predictions in real time.
+- The frontend currently points to `http://localhost:5000` in `frontend/src/services/api.js`.
+- The model files must stay in the `models/` folder with the expected filenames.
+- Camera access generally works only on `localhost` or HTTPS.
+- Activity attempts are stored in the browser and displayed on the report page.
 
 ## Troubleshooting
 
-- "No hand landmarks detected": improve lighting, move hand closer to camera, ensure entire hand is in frame.
-- Slow performance: try reducing input resolution or run the backend on a machine with better CPU; MediaPipe uses CPU by default.
-- Model file not found: ensure `models/` exists and files are named exactly as expected.
-
-## Docker (optional)
-
-You can containerize backend and frontend separately. Example Dockerfile for backend is not included; to create one:
-
-1. Create `backend/Dockerfile` using a Python base image, copy `backend/` and `models/`, install requirements and run `run.py`.
-2. Build and run with docker build/run or docker-compose.
+- Camera not starting: check browser permissions and make sure no other app is using the webcam.
+- Prediction not working: confirm the backend is running and the model files are present.
+- API errors: verify the frontend API base URL and backend port.
 
 ## Contributing
 
-- Open issues for bugs or feature requests.
-- For code changes, fork the repo, create a branch, and open a pull request with a clear summary of changes.
-
-Suggested steps:
-
-1. Create a branch: `git checkout -b feat/your-feature`
-2. Implement and test changes
-3. Run linters and formatters (if any)
-4. Push and create a PR
+1. Create a branch.
+2. Make your changes.
+3. Test locally.
+4. Open a pull request with a clear summary.
 
 ## License
 
-This repository does not include a license file by default. Add a `LICENSE` file with your preferred license (MIT, Apache-2.0, etc.).
+No license file is included in this repository. Add one if you plan to publish or distribute the project.
 
-## Contact / Acknowledgements
+## Author
 
-- Author: Sachinda Bandara
-- Repository: https://github.com/SachindaBandara/Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research
-
-If you'd like, I can also:
-
-- add a short CONTRIBUTING.md
-- create a Dockerfile for the backend
-- add CI workflow to run lint/tests
-
----
-
-If you want adjustments (more examples, expanded API docs, or Dockerfiles), tell me which sections to expand.
+Sachinda Bandara

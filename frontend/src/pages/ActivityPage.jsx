@@ -4,6 +4,7 @@ import WebcamRecorder from "../components/WebcamRecorder";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
+import { useTranslation } from "../i18n";
 
 import {
   generateQuestion,
@@ -11,7 +12,8 @@ import {
   validateActivityAnswer,
 } from "../services/api";
 
-export default function ActivityPage({ operation, title }) {
+export default function ActivityPage({ operation, title, icon }) {
+  const { t } = useTranslation();
   const [problem, setProblem] = useState(null);
   const [livePrediction, setLivePrediction] = useState("--");
   const [result, setResult] = useState(null);
@@ -89,11 +91,14 @@ export default function ActivityPage({ operation, title }) {
       {/* Question Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Brain className="h-5 w-5 text-violet-600" />
-            {title}
-          </CardTitle>
-        </CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              {(() => {
+                const IconComp = icon || Brain;
+                return <IconComp className="h-5 w-5 text-violet-600" />;
+              })()}
+              {title}
+            </CardTitle>
+          </CardHeader>
 
         <CardContent>
           {problem && (
@@ -115,14 +120,14 @@ export default function ActivityPage({ operation, title }) {
           <CardContent className="text-center">
 
             {loading ? (
-              <p className="text-lg animate-pulse">Processing...</p>
+              <p className="text-lg animate-pulse">{t("activity.processing")}</p>
             ) : (
               <>
-                <p className="text-sm opacity-80">Predicted Number</p>
+                <p className="text-sm opacity-80">{t("activity.predicted")}</p>
                 <div className="text-7xl font-bold">{livePrediction}</div>
 
                 <p className="mt-3 text-sm">
-                  Score: {score.correct}/{score.total}
+                  {t("activity.score")} : {score.correct}/{score.total}
                 </p>
 
                 <Button
@@ -130,7 +135,7 @@ export default function ActivityPage({ operation, title }) {
                   onClick={submitLiveAnswer}
                   disabled={livePrediction === "--" || loading}
                 >
-                  Submit Answer
+                  {t("activity.submit")}
                 </Button>
               </>
             )}
@@ -143,10 +148,10 @@ export default function ActivityPage({ operation, title }) {
       {result && (
         <Card>
           <CardContent className="p-4 space-y-2">
-            <p>Recognized: {result.predicted_answer}</p>
-            <p>Expected: {result.expected_answer}</p>
+            <p>{t("activity.recognized")} : {result.predicted_answer}</p>
+            <p>{t("activity.expected")} : {result.expected_answer}</p>
             <p className={result.is_correct ? "text-green-600" : "text-red-600"}>
-              {result.is_correct ? "Correct" : "Wrong"}
+              {result.is_correct ? t("activity.correct") : t("activity.wrong")}
             </p>
           </CardContent>
         </Card>
@@ -165,7 +170,7 @@ export default function ActivityPage({ operation, title }) {
         onClick={() => loadProblem().catch(setError)}
       >
         <RefreshCw className="h-4 w-4 mr-2" />
-        Next Problem
+        {t("activity.next")}
       </Button>
     </section>
   );

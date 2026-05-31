@@ -4,8 +4,10 @@ import { predictNumber } from "../services/api";
 import { Card, CardContent } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { LoaderCircle } from "lucide-react";
+import { useTranslation } from "../i18n";
 
 export default function NumberIdentificationPage() {
+  const { t } = useTranslation();
   const [prediction, setPrediction] = useState(null);
   const [confidence, setConfidence] = useState(null);
   const [modelKey, setModelKey] = useState(null);
@@ -52,11 +54,11 @@ export default function NumberIdentificationPage() {
             {loading ? (
               <>
                 <LoaderCircle className="mx-auto mb-2 h-8 w-8 animate-spin" />
-                <p>Processing gesture...</p>
+                <p>{t("number.processing")}</p>
               </>
             ) : (
               <>
-                <div className="text-sm opacity-80">Number</div>
+                <div className="text-sm opacity-80">{t("number.predicted")}</div>
                 <div className="text-7xl font-bold">
                   {prediction ?? "--"}
                 </div>

@@ -1,0 +1,42 @@
+{
+  "title": "Sign Language Number Learning App",
+  "subtitle": "Real-time number recognition and arithmetic practice with hand gestures.",
+  "nav": {
+    "home": "Home",
+    "number": "Number Identification",
+    "activities": "Activities"
+  },
+  "home": {
+    "welcome": "Welcome",
+    "p1": "Use this app to recognize Sri Lankan Sign Language numbers from 0 to 50 in real-time.",
+    "p2": "Then practice addition, subtraction, multiplication, and division using sign-based answers."
+  },
+  "recorder": {
+    "heading": "Gesture Recorder",
+    "subtitle": "Screen recording for sign gesture capture",
+    "help": "Keep your hand inside the frame and record a 3-second gesture.",
+    "live_preview": "Live camera preview",
+    "record_left": "{count}s left"
+  },
+  "number": {
+    "predicted": "Predicted Number",
+    "processing": "Processing gesture...",
+    "record": "Record 3s",
+    "stop": "Stop"
+  },
+  "activity": {
+    "predicted": "Predicted Number",
+    "processing": "Processing...",
+    "addition": "Addition",
+    "subtraction": "Subtraction",
+    "multiplication": "Multiplication",
+    "division": "Division",
+    "score": "Score",
+    "submit": "Submit Answer",
+    "next": "Next Problem",
+    "recognized": "Recognized",
+    "expected": "Expected",
+    "correct": "Correct",
+    "wrong": "Wrong"
+  }
+}

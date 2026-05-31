@@ -3,10 +3,12 @@ import { Camera, Circle, Square } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Alert, AlertDescription } from "./ui/alert";
+import { useTranslation } from "../i18n";
 
 const RECORD_DURATION_MS = 3000; // ✔ backend aligned
 
 export default function WebcamRecorder({ onVideoCapture, className = "" }) {
+  const { t } = useTranslation();
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -109,13 +111,13 @@ export default function WebcamRecorder({ onVideoCapture, className = "" }) {
       <CardContent className="p-5 space-y-5">
         <div className="space-y-1 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-            Gesture Recorder
+            {t("recorder.heading")}
           </p>
           <h2 className="text-lg font-semibold text-slate-900">
-            Screen recording for sign gesture capture
+            {t("recorder.subtitle")}
           </h2>
           <p className="text-sm text-slate-500">
-            Keep your hand inside the frame and record a 3-second gesture.
+            {t("recorder.help")}
           </p>
         </div>
 
@@ -134,13 +136,13 @@ export default function WebcamRecorder({ onVideoCapture, className = "" }) {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
               </span>
-              Live camera preview
+              {t("recorder.live_preview")}
             </div>
 
             {state === "recording" && (
               <div className="flex items-center gap-2 rounded-full bg-red-500/90 px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-red-500/30">
                 <Circle className="h-2.5 w-2.5 fill-white text-white" />
-                {countdown}s 
+                {t("recorder.record_left", { count: countdown })}
               </div>
             )}
           </div>
@@ -154,12 +156,12 @@ export default function WebcamRecorder({ onVideoCapture, className = "" }) {
           {state !== "recording" ? (
             <Button onClick={startRecording} className="min-w-40">
               <Camera className="w-4 h-4 mr-2" />
-              Record 3s
+              {t("number.record")}
             </Button>
           ) : (
             <Button variant="destructive" onClick={stopRecording} className="min-w-40">
               <Square className="w-4 h-4 mr-2" />
-              Stop
+              {t("number.stop")}
             </Button>
           )}
         </div>

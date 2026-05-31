@@ -144,15 +144,6 @@ The Vite app usually runs at `http://localhost:5173`.
 4. Use the Activities page to practice arithmetic with sign gestures.
 5. Open the Activity Report page to review performance history.
 
-## Frontend Scripts
-
-From the frontend/ folder:
-
-```bash
-npm run dev
-npm run build
-npm run preview
-```
 
 ## Backend API
 

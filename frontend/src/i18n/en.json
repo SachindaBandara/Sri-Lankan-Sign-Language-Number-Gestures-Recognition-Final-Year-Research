@@ -31,6 +31,7 @@
     "subtraction": "Subtraction",
     "multiplication": "Multiplication",
     "division": "Division",
+    "report": "View report",
     "score": "Score",
     "submit": "Submit Answer",
     "next": "Next Problem",
@@ -38,5 +39,20 @@
     "expected": "Expected",
     "correct": "Correct",
     "wrong": "Wrong"
+  },
+  "report": {
+    "title": "Activity Performance Report",
+    "subtitle": "Track questions, answers, correctness, and points.",
+    "back": "Back to activities",
+    "clear": "Clear report",
+    "totalAttempts": "Total attempts",
+    "correctAnswers": "Correct answers",
+    "points": "Points",
+    "tableTitle": "Performance details",
+    "empty": "No activity attempts recorded yet.",
+    "question": "Question",
+    "correctAnswer": "Correct answer",
+    "submittedAnswer": "Submit answer",
+    "result": "Result"
   }
 }

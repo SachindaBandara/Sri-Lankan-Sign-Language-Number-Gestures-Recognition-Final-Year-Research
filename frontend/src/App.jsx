@@ -1,6 +1,7 @@
 import { Calculator, Hand, Home } from "lucide-react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import ActivitiesPage from "./pages/ActivitiesPage";
+import ActivityReportPage from "./pages/ActivityReportPage";
 import HomePage from "./pages/HomePage";
 import NumberIdentificationPage from "./pages/NumberIdentificationPage";
 import { Card, CardContent } from "./components/ui/card";
@@ -52,6 +53,7 @@ function InnerApp() {
         <Route path="/" element={<HomePage />} />
         <Route path="/number-identification" element={<NumberIdentificationPage />} />
         <Route path="/activities" element={<ActivitiesPage />} />
+        <Route path="/activity-report" element={<ActivityReportPage />} />
       </Routes>
     </main>
   );

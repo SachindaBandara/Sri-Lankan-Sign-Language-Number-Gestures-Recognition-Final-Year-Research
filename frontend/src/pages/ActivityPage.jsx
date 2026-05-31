@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Brain, RefreshCw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import WebcamRecorder from "../components/WebcamRecorder";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -12,8 +13,24 @@ import {
   validateActivityAnswer,
 } from "../services/api";
 
+const ACTIVITY_REPORT_KEY = "activity-performance-report";
+
+function readReportEntries() {
+  try {
+    return JSON.parse(localStorage.getItem(ACTIVITY_REPORT_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function writeReportEntry(entry) {
+  const current = readReportEntries();
+  localStorage.setItem(ACTIVITY_REPORT_KEY, JSON.stringify([entry, ...current]));
+}
+
 export default function ActivityPage({ operation, title, icon }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [problem, setProblem] = useState(null);
   const [livePrediction, setLivePrediction] = useState("--");
   const [result, setResult] = useState(null);
@@ -73,6 +90,18 @@ export default function ActivityPage({ operation, title, icon }) {
       });
 
       setResult(evaluation);
+
+      writeReportEntry({
+        id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        operation,
+        title,
+        question: `${problem.left} ${problem.operator} ${problem.right} = ?`,
+        correctAnswer: evaluation.expected_answer,
+        submittedAnswer: livePrediction,
+        isCorrect: Boolean(evaluation.is_correct),
+        points: evaluation.is_correct ? 1 : 0,
+        createdAt: new Date().toISOString(),
+      });
 
       setScore((prev) => ({
         correct: prev.correct + (evaluation.is_correct ? 1 : 0),
@@ -171,6 +200,13 @@ export default function ActivityPage({ operation, title, icon }) {
       >
         <RefreshCw className="h-4 w-4 mr-2" />
         {t("activity.next")}
+      </Button>
+
+      <Button
+        variant="outline"
+        onClick={() => navigate("/activity-report")}
+      >
+        {t("activity.report") || "View report"}
       </Button>
     </section>
   );

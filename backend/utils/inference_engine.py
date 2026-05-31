@@ -24,7 +24,7 @@ class PredictionResult:
 
 
 # ==========================================================
-# SINGLE MODEL ENGINE (75-FEATURE COMPATIBLE)
+# SINGLE MODEL ENGINE (RF PRODUCTION FIX)
 # ==========================================================
 
 class SignNumberInference:
@@ -42,19 +42,39 @@ class SignNumberInference:
 
         payload = joblib.load(model_path)
 
+        self.model = None
+        self.scaler = None
+        self.label_encoder = None
+        self.feature_names = None
+
+        # ---------------- SAFE LOAD ----------------
         if isinstance(payload, dict):
-            self.model = payload["model"]
-            self.scaler = payload["scaler"]
-            self.label_encoder = payload["label_encoder"]
-            self.feature_names = payload["feature_names"]
+            self.model = (
+                payload.get("model")
+                or payload.get("rf_model")
+                or payload.get("classifier")
+            )
+            self.scaler = payload.get("scaler")
+            self.label_encoder = payload.get("label_encoder")
+            self.feature_names = payload.get("feature_names")
+
+        elif isinstance(payload, (list, tuple)):
+            self.model = payload[0]
+            self.scaler = payload[1] if len(payload) > 1 else None
+            self.label_encoder = payload[2] if len(payload) > 2 else None
+            self.feature_names = payload[3] if len(payload) > 3 else None
+
         else:
-            self.model, self.scaler, self.label_encoder, self.feature_names = payload[:4]
+            self.model = payload
+
+        if self.model is None:
+            raise ValueError("Model loading failed")
 
     # ======================================================
     # LANDMARK EXTRACTION
     # ======================================================
 
-    def extract_landmarks(self, frame: np.ndarray) -> list[float] | None:
+    def extract_landmarks(self, frame):
 
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.hands.process(image)
@@ -64,20 +84,13 @@ class SignNumberInference:
 
         hand = results.multi_hand_landmarks[0]
 
-        return [
-            coord
-            for lm in hand.landmark
-            for coord in (lm.x, lm.y, lm.z)
-        ]
+        return [v for lm in hand.landmark for v in (lm.x, lm.y, lm.z)]
 
     # ======================================================
     # TEMPORAL STABILITY
     # ======================================================
 
-    def extract_landmarks_from_frames(
-        self,
-        frames: list[np.ndarray]
-    ) -> list[list[float]]:
+    def extract_landmarks_from_frames(self, frames):
 
         processed = []
         previous = None
@@ -93,7 +106,6 @@ class SignNumberInference:
             if landmarks is None:
                 landmarks = previous if previous is not None else [0.0] * 63
 
-            # smoothing for motion stability
             if previous is not None:
                 landmarks = [
                     p * 0.7 + c * 0.3
@@ -106,78 +118,109 @@ class SignNumberInference:
         return processed, valid_count
 
     # ======================================================
-    # PREDICTION PIPELINE
+    # FEATURE ENGINEERING (CRITICAL FIX)
     # ======================================================
 
-    def predict_from_frames(
-        self,
-        frames: list[np.ndarray]
-    ) -> tuple[int | None, float]:
+    def build_features(self, seq):
 
-        landmarks_seq, valid_count = self.extract_landmarks_from_frames(frames)
+        if self.feature_names:
+            base_cols = self.feature_names[:63]
+        else:
+            base_cols = [f"f{i}" for i in range(63)]
 
-        if not landmarks_seq:
-            return None, 0.0
+        df = pd.DataFrame(seq, columns=base_cols)
 
-        # reject poor-quality video
-        if valid_count < max(5, int(len(frames) * 0.3)):
-            return None, 0.0
-
-        base_cols = self.feature_names[:-12]
-
-        df = pd.DataFrame(landmarks_seq, columns=base_cols)
-
-        # statistical features (same training pipeline)
         for axis in ("x", "y", "z"):
 
             cols = [c for c in df.columns if c.endswith(f"_{axis}")]
 
-            df[f"mean_{axis}"] = df[cols].mean(axis=1)
-            df[f"std_{axis}"] = df[cols].std(axis=1).fillna(0)
-            df[f"max_{axis}"] = df[cols].max(axis=1)
-            df[f"min_{axis}"] = df[cols].min(axis=1)
+            if cols:
+                df[f"mean_{axis}"] = df[cols].mean(axis=1)
+                df[f"std_{axis}"] = df[cols].std(axis=1).fillna(0)
+                df[f"max_{axis}"] = df[cols].max(axis=1)
+                df[f"min_{axis}"] = df[cols].min(axis=1)
 
-        df = df[self.feature_names]
+        # 🔥 CRITICAL FIX: enforce exact feature order
+        if self.feature_names:
+            df = df.reindex(columns=self.feature_names, fill_value=0)
 
-        X = self.scaler.transform(df)
+        return df
+
+    # ======================================================
+    # PREDICTION
+    # ======================================================
+
+    def predict_from_frames(self, frames):
+
+        seq, valid = self.extract_landmarks_from_frames(frames)
+
+        if len(seq) < 5 or valid < 3:
+            return None, 0.0
+
+        X_df = self.build_features(seq)
+
+        X = X_df
+
+        if self.scaler is not None:
+            X_scaled = self.scaler.transform(X_df)
+            X = pd.DataFrame(
+                X_scaled,
+                columns=X_df.columns
+            )
+
+    # --------------------------------------------------
+    # Aggregate probabilities over all frames
+    # --------------------------------------------------
+
+        if hasattr(self.model, "predict_proba"):
+
+            probs = self.model.predict_proba(X)
+
+            avg_probs = probs.mean(axis=0)
+
+            best_idx = np.argmax(avg_probs)
+
+            confidence = float(avg_probs[best_idx])
+
+            pred = self.model.classes_[best_idx]
+
+            if self.label_encoder is not None:
+                pred = self.label_encoder.inverse_transform([pred])[0]
+
+            return int(pred), confidence
+
+    # --------------------------------------------------
+    # Fallback
+    # --------------------------------------------------
 
         preds = self.model.predict(X)
-        labels = self.label_encoder.inverse_transform(preds)
 
-        # weighted majority voting
-        vote_scores = {}
+        if self.label_encoder is not None:
+            preds = self.label_encoder.inverse_transform(preds)
 
-        for label in labels:
-            vote_scores[label] = vote_scores.get(label, 0) + 1
+        unique, counts = np.unique(preds, return_counts=True)
 
-        best_label = int(max(vote_scores, key=vote_scores.get))
+        best_label = int(unique[np.argmax(counts)])
 
-        confidence = self._confidence(X)
+        confidence = counts.max() / counts.sum()
 
-        return best_label, confidence
+        return best_label, float(confidence)
 
     # ======================================================
-    # CONFIDENCE
+    # CONFIDENCE (RF FIXED)
     # ======================================================
 
-    def _confidence(self, X: np.ndarray) -> float:
+    def _confidence(self, X):
 
         try:
+
             if hasattr(self.model, "predict_proba"):
 
                 probs = self.model.predict_proba(X)
 
-                frame_conf = np.max(probs, axis=1)
+                avg_probs = probs.mean(axis=0)
 
-                return float(np.mean(frame_conf))
-
-            if hasattr(self.model, "decision_function"):
-
-                scores = np.abs(self.model.decision_function(X))
-
-                return float(
-                    np.mean(scores) / (np.max(scores) + 1e-6)
-                )
+                return float(np.max(avg_probs))
 
         except Exception:
             pass
@@ -192,11 +235,11 @@ class SignNumberInference:
 class InferenceManager:
 
     MODEL_FILES = {
-        "0-9": "0-9_numbers_svm_model.joblib",
-        "10-19": "10-19_numbers_svm_model.joblib",
-        "20-29": "20-29_numbers_svm_model.joblib",
-        "30-39": "30-39_numbers_svm_model.joblib",
-        "40-50": "40-50_numbers_svm_model.joblib",
+        "0-9": "0-9_numbers_rf_model.joblib",
+        "10-19": "10-19_numbers_rf_model.joblib",
+        "20-29": "20-29_numbers_rf_model.joblib",
+        "30-39": "30-39_numbers_rf_model.joblib",
+        "40-50": "40-50_numbers_rf_model.joblib",
     }
 
     SAMPLE_FPS = 10
@@ -210,23 +253,34 @@ class InferenceManager:
             path = models_dir / file
 
             if not path.exists():
-                raise FileNotFoundError(f"Missing model: {path}")
+                raise FileNotFoundError(path)
 
             self.models[key] = SignNumberInference(path)
+
+    @staticmethod
+    def prediction_belongs_to_model(pred, model_key):
+
+        ranges = {
+            "0-9": (0, 9),
+            "10-19": (10, 19),
+            "20-29": (20, 29),
+            "30-39": (30, 39),
+            "40-50": (40, 50),
+        }
+
+        low, high = ranges[model_key]
+
+        return low <= pred <= high
 
     # ======================================================
     # VIDEO DECODER
     # ======================================================
 
     @staticmethod
-    def decode_base64_video(video_base64: str) -> list[np.ndarray]:
+    def decode_base64_video(video_base64):
 
         payload = video_base64.split(",", 1)[1] if "," in video_base64 else video_base64
-
-        try:
-            video_bytes = base64.b64decode(payload)
-        except Exception:
-            return []
+        video_bytes = base64.b64decode(payload)
 
         with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
             tmp.write(video_bytes)
@@ -234,18 +288,11 @@ class InferenceManager:
 
         cap = cv2.VideoCapture(path)
 
-        if not cap.isOpened():
-            return []
-
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        if fps <= 0:
-            fps = 30
-
+        frames = []
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30
         step = max(1, round(fps / InferenceManager.SAMPLE_FPS))
 
-        frames = []
         i = 0
-
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -262,29 +309,10 @@ class InferenceManager:
         return frames
 
     # ======================================================
-    # RANGE VALIDATION
-    # ======================================================
-
-    def is_valid_range(self, model_key: str, number: int) -> bool:
-
-        if model_key == "0-9":
-            return 0 <= number <= 9
-        if model_key == "10-19":
-            return 10 <= number <= 19
-        if model_key == "20-29":
-            return 20 <= number <= 29
-        if model_key == "30-39":
-            return 30 <= number <= 39
-        if model_key == "40-50":
-            return 40 <= number <= 50
-
-        return False
-
-    # ======================================================
     # MAIN PREDICTION
     # ======================================================
 
-    def predict_video(self, video_base64: str) -> PredictionResult | None:
+    def predict_video(self, video_base64):
 
         frames = self.decode_base64_video(video_base64)
 
@@ -296,20 +324,20 @@ class InferenceManager:
         for key, model in self.models.items():
 
             try:
+
                 pred, conf = model.predict_from_frames(frames)
 
                 if pred is None:
                     continue
 
-                # penalize wrong range predictions
-                if not self.is_valid_range(key, pred):
-                    conf *= 0.5
+                if not self.prediction_belongs_to_model(pred, key):
+                    continue
 
                 results.append(
                     PredictionResult(
-                        predicted_number=pred,
+                        predicted_number=int(pred),
                         model_key=key,
-                        confidence=conf,
+                        confidence=float(conf),
                     )
                 )
 
@@ -319,11 +347,20 @@ class InferenceManager:
         if not results:
             return None
 
-        # confidence filtering
-        results = [r for r in results if r.confidence >= 0.55]
+        results.sort(
+            key=lambda r: r.confidence,
+            reverse=True
+        )
 
-        if not results:
-            return None
+        print("\n===== MODEL RESULTS =====")
 
-        # final selection
-        return max(results, key=lambda x: x.confidence)
+        for r in results:
+            print(
+                f"{r.model_key} | "
+                f"Prediction={r.predicted_number} | "
+                f"Confidence={r.confidence:.4f}"
+            )
+
+        print("=========================\n")
+
+        return results[0]

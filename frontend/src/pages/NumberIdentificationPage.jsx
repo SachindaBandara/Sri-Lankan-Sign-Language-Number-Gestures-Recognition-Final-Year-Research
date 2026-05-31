@@ -1,9 +1,9 @@
 import { useCallback, useState } from "react";
 import WebcamRecorder from "../components/WebcamRecorder";
 import { predictNumber } from "../services/api";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Card, CardContent } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { Sparkles, Activity } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 
 export default function NumberIdentificationPage() {
   const [prediction, setPrediction] = useState(null);
@@ -42,19 +42,6 @@ export default function NumberIdentificationPage() {
   return (
     <section className="space-y-6">
 
-      {/* header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles />
-            Sign Number Recognition (3 seconds)
-          </CardTitle>
-          <p className="text-sm text-gray-500">
-            Show dynamic sign gesture for 3 seconds
-          </p>
-        </CardHeader>
-      </Card>
-
       <div className="grid lg:grid-cols-2 gap-4">
 
         <WebcamRecorder onVideoCapture={handleVideo} />
@@ -64,22 +51,16 @@ export default function NumberIdentificationPage() {
 
             {loading ? (
               <>
-                <Activity className="animate-spin mx-auto mb-2" />
+                <LoaderCircle className="mx-auto mb-2 h-8 w-8 animate-spin" />
                 <p>Processing gesture...</p>
               </>
             ) : (
               <>
-                <div className="text-sm opacity-80">Predicted Number</div>
+                <div className="text-sm opacity-80">Number</div>
                 <div className="text-7xl font-bold">
                   {prediction ?? "--"}
                 </div>
 
-                {prediction !== null && (
-                  <div className="mt-4 text-sm space-x-2">
-                    <span>Confidence: {confidence}%</span>
-                    <span>Model: {modelKey}</span>
-                  </div>
-                )}
               </>
             )}
 

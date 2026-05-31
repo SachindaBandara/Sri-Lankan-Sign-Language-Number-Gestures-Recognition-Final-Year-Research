@@ -105,36 +105,59 @@ export default function WebcamRecorder({ onVideoCapture, className = "" }) {
   };
 
   return (
-    <Card className={`w-full ${className}`}>
-      <CardContent className="p-4 space-y-4">
-
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full rounded-lg border aspect-[4/3] object-cover"
-        />
-
-        {/* status */}
-        <div className="text-sm">
-          Status: <b>{state}</b>
+    <Card className={`w-full overflow-hidden ${className}`}>
+      <CardContent className="p-5 space-y-5">
+        <div className="space-y-1 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            Gesture Recorder
+          </p>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Screen recording for sign gesture capture
+          </h2>
+          <p className="text-sm text-slate-500">
+            Keep your hand inside the frame and record a 3-second gesture.
+          </p>
         </div>
 
-        {state === "recording" && (
-          <div className="text-red-500 font-bold">
-            {countdown}s
-          </div>
-        )}
+        <div className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-950 shadow-[0_20px_45px_rgba(15,23,42,0.18)]">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="aspect-[4/3] w-full object-cover"
+          />
 
-        <div className="flex gap-3">
+          <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2 rounded-full bg-slate-600/70 px-3 py-1 text-xs font-medium text-white backdrop-blur">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+              </span>
+              Live camera preview
+            </div>
+
+            {state === "recording" && (
+              <div className="flex items-center gap-2 rounded-full bg-red-500/90 px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-red-500/30">
+                <Circle className="h-2.5 w-2.5 fill-white text-white" />
+                {countdown}s 
+              </div>
+            )}
+          </div>
+
+          {state === "recording" && (
+            <div className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-red-500/60 ring-inset" />
+          )}
+        </div>
+
+        <div className="flex justify-center gap-3">
           {state !== "recording" ? (
-            <Button onClick={startRecording}>
-              <Circle className="w-4 h-4 mr-2 text-red-500" />
+            <Button onClick={startRecording} className="min-w-40">
+              <Camera className="w-4 h-4 mr-2" />
               Record 3s
             </Button>
           ) : (
-            <Button variant="destructive" onClick={stopRecording}>
+            <Button variant="destructive" onClick={stopRecording} className="min-w-40">
               <Square className="w-4 h-4 mr-2" />
               Stop
             </Button>

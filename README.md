@@ -1,14 +1,14 @@
 # Sri Lankan Sign Language Number Gestures Recognition
 
-A full-stack web application that recognizes Sri Lankan Sign Language number gestures from a webcam feed and supports arithmetic practice with activity-based feedback.
+A full-stack web application for recognizing Sri Lankan Sign Language number gestures from a webcam feed and supporting arithmetic practice with activity-based feedback.
 
-## Features
+## Highlights
 
 - Real-time webcam-based number recognition for numbers 0 to 50
 - Arithmetic activity practice for addition, subtraction, multiplication, and division
-- Separate activity performance report page with question, correct answer, submitted answer, result, and points
+- Activity report page with question, correct answer, submitted answer, result, and points
 - English and Sinhala language support
-- Kid-friendly UI mode
+- Kid-friendly UI mode for a more playful learning experience
 - Live camera preview with recording overlay and processing feedback
 
 ## Tech Stack
@@ -21,41 +21,69 @@ A full-stack web application that recognizes Sri Lankan Sign Language number ges
 ## Project Structure
 
 ```text
-README.md
-backend/
-  app.py
-  run.py
-  requirements.txt
-  app/
-    routes/
-    services/
-    utils/
-  routes/
-    __init__.py
-    activity_routes.py
-    prediction_routes.py
-  utils/
-    __init__.py
-    activity_engine.py
-    inference_engine.py
-frontend/
-  index.html
-  package.json
-  vite.config.js
-  src/
-    App.jsx
-    main.jsx
-    styles.css
-    components/
-    pages/
-    services/
-models/
-  0-9_numbers_rf_model.joblib
-  10-19_numbers_rf_model.joblib
-  20-29_numbers_rf_model.joblib
-  30-39_numbers_rf_model.joblib
-  40-50_numbers_rf_model.joblib
+Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research/
+├─ backend/
+│  ├─ app.py
+│  ├─ run.py
+│  ├─ requirements.txt
+│  ├─ app/
+│  │  ├─ routes/
+│  │  ├─ services/
+│  │  └─ utils/
+│  ├─ routes/
+│  │  ├─ __init__.py
+│  │  ├─ activity_routes.py
+│  │  └─ prediction_routes.py
+│  └─ utils/
+│     ├─ __init__.py
+│     ├─ activity_engine.py
+│     └─ inference_engine.py
+├─ frontend/
+│  ├─ index.html
+│  ├─ package.json
+│  ├─ postcss.config.js
+│  ├─ tailwind.config.js
+│  ├─ vite.config.js
+│  └─ src/
+│     ├─ App.jsx
+│     ├─ main.jsx
+│     ├─ styles.css
+│     ├─ components/
+│     │  ├─ LanguageSelector.jsx
+│     │  ├─ WebcamRecorder.jsx
+│     │  └─ ui/
+│     ├─ i18n/
+│     │  ├─ en.json
+│     │  ├─ index.jsx
+│     │  └─ si.json
+│     ├─ lib/
+│     │  └─ utils.js
+│     ├─ pages/
+│     │  ├─ ActivitiesPage.jsx
+│     │  ├─ ActivityPage.jsx
+│     │  ├─ ActivityReportPage.jsx
+│     │  ├─ HomePage.jsx
+│     │  └─ NumberIdentificationPage.jsx
+│     └─ services/
+│        └─ api.js
+├─ models/
+│  ├─ 0-9_numbers_rf_model.joblib
+│  ├─ 10-19_numbers_rf_model.joblib
+│  ├─ 20-29_numbers_rf_model.joblib
+│  ├─ 30-39_numbers_rf_model.joblib
+│  └─ 40-50_numbers_rf_model.joblib
+└─ LICENSE
 ```
+
+## Repository Map
+
+| Area | Purpose |
+| --- | --- |
+| backend/ | Flask API, inference engine, and arithmetic activity logic |
+| frontend/ | React application, UI components, translation files, and pages |
+| models/ | Trained gesture recognition models used by the backend |
+| README.md | Project overview, setup guide, API reference, and usage notes |
+| LICENSE | Open-source license terms for reuse and distribution |
 
 ## Prerequisites
 
@@ -118,7 +146,7 @@ The Vite app usually runs at `http://localhost:5173`.
 
 ## Frontend Scripts
 
-From the `frontend/` folder:
+From the frontend/ folder:
 
 ```bash
 npm run dev
@@ -128,7 +156,8 @@ npm run preview
 
 ## Backend API
 
-### `GET /health`
+### GET /health
+
 Returns server health status.
 
 Example response:
@@ -137,7 +166,8 @@ Example response:
 { "status": "ok" }
 ```
 
-### `POST /predict-number`
+### POST /predict-number
+
 Predicts a number from a webcam video payload.
 
 Example request:
@@ -158,7 +188,8 @@ Example response:
 }
 ```
 
-### `POST /activity/generate-question`
+### POST /activity/generate-question
+
 Generates a new arithmetic question.
 
 Example request:
@@ -181,7 +212,8 @@ Example response:
 }
 ```
 
-### `POST /activity/validate-answer`
+### POST /activity/validate-answer
+
 Validates a submitted answer.
 
 Example request:
@@ -210,9 +242,9 @@ Example response:
 
 ## Notes
 
-- The frontend currently points to `http://localhost:5000` in `frontend/src/services/api.js`.
-- The model files must stay in the `models/` folder with the expected filenames.
-- Camera access generally works only on `localhost` or HTTPS.
+- The frontend currently points to http://localhost:5000 in frontend/src/services/api.js.
+- The model files must stay in the models/ folder with the expected filenames.
+- Camera access generally works only on localhost or HTTPS.
 - Activity attempts are stored in the browser and displayed on the report page.
 
 ## Troubleshooting
@@ -221,16 +253,9 @@ Example response:
 - Prediction not working: confirm the backend is running and the model files are present.
 - API errors: verify the frontend API base URL and backend port.
 
-## Contributing
-
-1. Create a branch.
-2. Make your changes.
-3. Test locally.
-4. Open a pull request with a clear summary.
-
 ## License
 
-No license file is included in this repository. Add one if you plan to publish or distribute the project.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Author
 

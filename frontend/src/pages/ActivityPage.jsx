@@ -4,17 +4,22 @@ import WebcamRecorder from "../components/WebcamRecorder";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { generateQuestion, predictNumber, validateActivityAnswer } from "../services/api";
+
+import {
+  generateQuestion,
+  predictNumber,
+  validateActivityAnswer,
+} from "../services/api";
 
 export default function ActivityPage({ operation, title }) {
   const [problem, setProblem] = useState(null);
-  const [isStreaming, setIsStreaming] = useState(false);
   const [livePrediction, setLivePrediction] = useState("--");
   const [result, setResult] = useState(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const isRequestInFlightRef = useRef(false);
+
+  const isRequestInFlight = useRef(false);
 
   const loadProblem = async () => {
     setError("");
@@ -27,37 +32,46 @@ export default function ActivityPage({ operation, title }) {
     loadProblem().catch((err) => setError(err.message));
   }, [operation]);
 
-  const handleFrame = useCallback(
-    async (frameDataUrl) => {
-      if (isRequestInFlightRef.current) return;
-      isRequestInFlightRef.current = true;
-
-      try {
-        const prediction = await predictNumber(frameDataUrl, "auto");
-        setLivePrediction(String(prediction.predicted_number));
-      } catch (err) {
-        // Keep stream smooth for repeated frame inference during live mode.
-        if (err.message && err.message !== "No hand landmarks detected") {
-          setError(err.message);
-        }
-      }
-      isRequestInFlightRef.current = false;
-    },
-    [setLivePrediction]
-  );
-
-  const submitLiveAnswer = async () => {
-    if (!problem || livePrediction === "--") return;
+  /**
+   * FIX: video-based prediction (not frame streaming)
+   */
+  const handleVideo = useCallback(async (videoBase64) => {
     setLoading(true);
     setError("");
+    setLivePrediction("--");
+
+    try {
+      const data = await predictNumber(videoBase64);
+
+      setLivePrediction(String(data.predicted_number));
+    } catch (err) {
+      if (err.message !== "No hand landmarks detected in the video") {
+        setError(err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * FIXED backend payload
+   */
+  const submitLiveAnswer = async () => {
+    if (!problem || livePrediction === "--") return;
+
+    setLoading(true);
+    setError("");
+
     try {
       const evaluation = await validateActivityAnswer({
         operation,
         left: problem.left,
         right: problem.right,
-        predictedNumber: Number(livePrediction),
+        predicted_number: Number(livePrediction), // ✅ FIXED
       });
+
       setResult(evaluation);
+
       setScore((prev) => ({
         correct: prev.correct + (evaluation.is_correct ? 1 : 0),
         total: prev.total + 1,
@@ -70,70 +84,89 @@ export default function ActivityPage({ operation, title }) {
   };
 
   return (
-    <section className="space-y-4 sm:space-y-6">
-      <Card className="border-slate-200 bg-white">
+    <section className="space-y-6">
+
+      {/* Question Card */}
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl">
+          <CardTitle className="flex items-center gap-2 text-xl">
             <Brain className="h-5 w-5 text-violet-600" />
             {title}
           </CardTitle>
         </CardHeader>
+
         <CardContent>
           {problem && (
-            <h3 className="rounded-lg bg-slate-50 p-4 text-center text-2xl font-semibold sm:text-3xl">
+            <h3 className="text-center text-3xl font-semibold bg-slate-50 p-4 rounded-lg">
               {problem.left} {problem.operator} {problem.right} = ?
             </h3>
           )}
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <WebcamRecorder
-          onFrameCapture={handleFrame}
-          isStreaming={isStreaming}
-          onToggleStreaming={() => setIsStreaming((prev) => !prev)}
-          buttonLabel={isStreaming ? "Stop Camera" : "Start Camera"}
-        />
-        <Card className="border-slate-200 bg-white">
-          <CardContent className="space-y-4 py-5 sm:py-6">
-            <p className="text-sm text-slate-500">Live Predicted Number (0-50)</p>
-            <p className="text-5xl font-bold text-indigo-700">{livePrediction}</p>
-            <p className="text-sm text-slate-500">
-              Score: {score.correct}/{score.total}
-            </p>
-            <Button onClick={submitLiveAnswer} disabled={loading || livePrediction === "--"}>
-              Submit Predicted Answer
-            </Button>
+      {/* MAIN LAYOUT */}
+      <div className="grid lg:grid-cols-2 gap-4">
+
+        {/* CAMERA */}
+        <WebcamRecorder onVideoCapture={handleVideo} />
+
+        {/* RESULT PANEL */}
+        <Card className="flex items-center justify-center bg-gradient-to-br from-indigo-600 to-blue-700 text-white">
+          <CardContent className="text-center">
+
+            {loading ? (
+              <p className="text-lg animate-pulse">Processing...</p>
+            ) : (
+              <>
+                <p className="text-sm opacity-80">Predicted Number</p>
+                <div className="text-7xl font-bold">{livePrediction}</div>
+
+                <p className="mt-3 text-sm">
+                  Score: {score.correct}/{score.total}
+                </p>
+
+                <Button
+                  className="mt-4"
+                  onClick={submitLiveAnswer}
+                  disabled={livePrediction === "--" || loading}
+                >
+                  Submit Answer
+                </Button>
+              </>
+            )}
+
           </CardContent>
         </Card>
-        {result && (
-          <Card className="border-slate-200 bg-white">
-            <CardContent className="space-y-2 py-5 sm:py-6">
-              <p className="text-sm text-slate-500">Result</p>
-              <p>Recognized Answer: {result.predicted_answer}</p>
-              <p>Expected Answer: {result.expected_answer}</p>
-              <p className={result.is_correct ? "font-semibold text-emerald-700" : "font-semibold text-red-700"}>
-                {result.is_correct ? "Correct!" : "Try Again"}
-              </p>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
-      <Button
-        className="w-full gap-2 sm:w-auto"
-        variant="secondary"
-        onClick={() => loadProblem().catch((err) => setError(err.message))}
-      >
-        <RefreshCw className="h-4 w-4" />
-        Next Problem
-      </Button>
-      {loading && <p className="text-sm text-slate-500">Checking answer...</p>}
+      {/* RESULT */}
+      {result && (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <p>Recognized: {result.predicted_answer}</p>
+            <p>Expected: {result.expected_answer}</p>
+            <p className={result.is_correct ? "text-green-600" : "text-red-600"}>
+              {result.is_correct ? "Correct" : "Wrong"}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ERROR */}
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
+      {/* NEXT */}
+      <Button
+        variant="secondary"
+        onClick={() => loadProblem().catch(setError)}
+      >
+        <RefreshCw className="h-4 w-4 mr-2" />
+        Next Problem
+      </Button>
     </section>
   );
 }

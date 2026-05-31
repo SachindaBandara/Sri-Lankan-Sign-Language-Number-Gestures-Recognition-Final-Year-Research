@@ -6,38 +6,51 @@ async function postJson(path, payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
   const data = await response.json();
+
   if (!response.ok) {
     throw new Error(data.error || "API request failed");
   }
+
   return data;
 }
 
 /**
- * Send a base64-encoded video (≈5 s) to the prediction endpoint.
- * The backend evaluates all models and returns the most confident result.
- *
- * @param {string} videoBase64 - data:<mime>;base64,<data> string from FileReader
- * @returns {Promise<{ predicted_number: number, model_key: string, confidence: number }>}
+ * Predict number from video (3–5 sec)
  */
 export function predictNumber(videoBase64) {
-  // optional safety check
   if (!videoBase64 || videoBase64.length < 1000) {
     throw new Error("Video too short or invalid");
   }
 
-  return postJson("/predict-number", { video: videoBase64 });
+  return postJson("/predict-number", {
+    video: videoBase64,
+  });
 }
 
+/**
+ * Generate arithmetic question
+ */
 export function generateQuestion(operation) {
-  return postJson("/activity/generate-question", { operation });
+  return postJson("/activity/generate-question", {
+    operation,
+  });
 }
 
-export function validateActivityAnswer({ operation, left, right, predictedNumber }) {
+/**
+ * Validate answer (FIXED FIELD NAME)
+ */
+export function validateActivityAnswer({
+  operation,
+  left,
+  right,
+  predicted_number,
+}) {
   return postJson("/activity/validate-answer", {
     operation,
     left,
     right,
-    predicted_number: predictedNumber,
+    predicted_number, // ✅ FIXED
   });
 }

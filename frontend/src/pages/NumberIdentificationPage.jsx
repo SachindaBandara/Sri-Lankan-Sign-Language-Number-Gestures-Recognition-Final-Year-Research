@@ -9,8 +9,6 @@ import { useTranslation } from "../i18n";
 export default function NumberIdentificationPage() {
   const { t } = useTranslation();
   const [prediction, setPrediction] = useState(null);
-  const [confidence, setConfidence] = useState(null);
-  const [modelKey, setModelKey] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -20,15 +18,11 @@ export default function NumberIdentificationPage() {
 
     // reset old result immediately
     setPrediction(null);
-    setConfidence(null);
-    setModelKey(null);
 
     try {
       const data = await predictNumber(videoBase64);
 
       setPrediction(data.predicted_number);
-      setConfidence(Math.round((data.confidence || 0) * 100));
-      setModelKey(data.model_key);
 
     } catch (err) {
       setError(

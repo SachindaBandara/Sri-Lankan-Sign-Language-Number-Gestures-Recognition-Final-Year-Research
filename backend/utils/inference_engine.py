@@ -13,6 +13,46 @@ import pandas as pd
 
 
 # ==========================================================
+# CONSTANTS — these MUST match the training pipeline
+# (research_sign_language_20_29_number_classifier_v2.py)
+# exactly, or the feature vectors won't line up with what
+# the model was fit on.
+# ==========================================================
+
+LANDMARK_NAMES = [
+    "WRIST",
+    "THUMB_CMC",
+    "THUMB_MCP",
+    "THUMB_IP",
+    "THUMB_TIP",
+    "INDEX_FINGER_MCP",
+    "INDEX_FINGER_PIP",
+    "INDEX_FINGER_DIP",
+    "INDEX_FINGER_TIP",
+    "MIDDLE_FINGER_MCP",
+    "MIDDLE_FINGER_PIP",
+    "MIDDLE_FINGER_DIP",
+    "MIDDLE_FINGER_TIP",
+    "RING_FINGER_MCP",
+    "RING_FINGER_PIP",
+    "RING_FINGER_DIP",
+    "RING_FINGER_TIP",
+    "PINKY_MCP",
+    "PINKY_PIP",
+    "PINKY_DIP",
+    "PINKY_TIP",
+]
+
+# Fixed number of temporal segments — training always produces exactly this
+# many `segment{n}_mean_*` columns, regardless of clip length.
+NUM_SEGMENTS = 5
+
+LANDMARK_COLUMNS: list[str] = []
+for _name in LANDMARK_NAMES:
+    LANDMARK_COLUMNS.extend([f"{_name}_x", f"{_name}_y", f"{_name}_z"])
+
+
+# ==========================================================
 # RESULT STRUCTURE
 # ==========================================================
 
@@ -24,58 +64,96 @@ class PredictionResult:
 
 
 # ==========================================================
-# SINGLE MODEL ENGINE (RF PRODUCTION FIX)
+# SINGLE MODEL ENGINE
 # ==========================================================
 
 class SignNumberInference:
+    """
+    Runs one range-specific model (e.g. "20-29") end-to-end: raw video frames
+    → normalized hand landmarks → hybrid per-video feature vector → learned
+    feature selection → class probabilities.
+
+    Every step below is a direct mirror of the corresponding step in the
+    training notebook. If you ever retrain / change the training feature
+    engineering, this class must be updated to match, or predictions will
+    silently be wrong (no shape/name errors — just garbage confidence).
+    """
 
     def __init__(self, model_path: Path):
-
+        # NOTE: max_num_hands=2 matches LandmarkDatasetCreator's config used
+        # during training. Only hand index 0 is ever used (same as training),
+        # but keeping the detector config identical avoids subtle differences
+        # in how MediaPipe ranks/orders detected hands.
         self.mp_hands = mp.solutions.hands
-
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
-            max_num_hands=1,
+            max_num_hands=2,
             min_detection_confidence=0.7,
             min_tracking_confidence=0.5,
         )
 
         payload = joblib.load(model_path)
 
-        self.model = None
-        self.scaler = None
-        self.label_encoder = None
-        self.feature_names = None
-
-        # ---------------- SAFE LOAD ----------------
-        if isinstance(payload, dict):
-            self.model = (
-                payload.get("model")
-                or payload.get("rf_model")
-                or payload.get("classifier")
+        if not isinstance(payload, dict):
+            raise ValueError(
+                f"Unexpected model bundle format in {model_path}: expected the "
+                f"dict produced by SignLanguageRandomForest's training script "
+                f"(with 'model', 'label_encoder', 'feature_names', ...), got "
+                f"{type(payload)!r}."
             )
-            self.scaler = payload.get("scaler")
-            self.label_encoder = payload.get("label_encoder")
-            self.feature_names = payload.get("feature_names")
 
-        elif isinstance(payload, (list, tuple)):
-            self.model = payload[0]
-            self.scaler = payload[1] if len(payload) > 1 else None
-            self.label_encoder = payload[2] if len(payload) > 2 else None
-            self.feature_names = payload[3] if len(payload) > 3 else None
+        self.model = payload.get("model")
+        self.label_encoder = payload.get("label_encoder")
 
-        else:
-            self.model = payload
+        # Full raw feature column order produced by _build_sequence_features,
+        # BEFORE the two-stage feature selector reduces it.
+        self.feature_names: list[str] = payload.get("feature_names") or []
+
+        # Feature-selection artifacts. If feature_selection_threshold was
+        # None at training time, `selector` will be None and the raw
+        # features (reindexed to feature_names) are used as-is.
+        self.selector = payload.get("selector")
+        self.keep_var_cols: list[str] = payload.get("keep_var_cols") or self.feature_names
+        self.selected_feature_names: list[str] = (
+            payload.get("selected_feature_names") or self.feature_names
+        )
 
         if self.model is None:
-            raise ValueError("Model loading failed")
+            raise ValueError(f"Model bundle at {model_path} is missing a 'model' entry")
+        if self.label_encoder is None:
+            raise ValueError(f"Model bundle at {model_path} is missing a 'label_encoder' entry")
+        if not self.feature_names:
+            raise ValueError(
+                f"Model bundle at {model_path} is missing 'feature_names' — "
+                f"cannot reconstruct the training feature layout."
+            )
 
     # ======================================================
-    # LANDMARK EXTRACTION
+    # LANDMARK EXTRACTION (mirrors LandmarkDatasetCreator)
     # ======================================================
 
-    def extract_landmarks(self, frame):
+    @staticmethod
+    def _normalize_landmark_vector(coords) -> np.ndarray:
+        """Center landmarks at the wrist and scale for pose-invariant learning.
 
+        This step was silently missing from the old inference code, which
+        fed raw absolute image-space coordinates into a model trained on
+        wrist-centered, scale-normalized ones.
+        """
+        points = np.asarray(coords, dtype=np.float32).reshape(-1, 3)
+        wrist = points[0].copy()
+        points = points - wrist
+        scale = np.max(np.linalg.norm(points, axis=1))
+        if scale > 1e-6:
+            points = points / scale
+        return points.reshape(-1)
+
+    def _extract_landmarks(self, frame) -> np.ndarray | None:
+        """Extract and normalize hand landmarks from one frame.
+
+        Returns a 1-D float32 array of length 63 (21 landmarks x 3 coords),
+        or None when no hand is detected.
+        """
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.hands.process(image)
 
@@ -83,149 +161,140 @@ class SignNumberInference:
             return None
 
         hand = results.multi_hand_landmarks[0]
+        coords = []
+        for lm in hand.landmark:
+            coords.extend([lm.x, lm.y, lm.z])
 
-        return [v for lm in hand.landmark for v in (lm.x, lm.y, lm.z)]
+        return self._normalize_landmark_vector(coords)
 
-    # ======================================================
-    # TEMPORAL STABILITY
-    # ======================================================
+    def _extract_sequence(self, frames) -> tuple[list[np.ndarray], int]:
+        """Build the per-frame landmark sequence for a whole clip.
 
-    def extract_landmarks_from_frames(self, frames):
-
-        processed = []
-        previous = None
+        Unlike the old implementation, frames with no detected hand are
+        simply dropped rather than filled in with a stale/zero landmark
+        vector — training never saw padded frames, so we shouldn't
+        manufacture them here either.
+        """
+        sequence: list[np.ndarray] = []
         valid_count = 0
 
         for frame in frames:
-
-            landmarks = self.extract_landmarks(frame)
-
+            landmarks = self._extract_landmarks(frame)
             if landmarks is not None:
+                sequence.append(landmarks)
                 valid_count += 1
 
-            if landmarks is None:
-                landmarks = previous if previous is not None else [0.0] * 63
-
-            if previous is not None:
-                landmarks = [
-                    p * 0.7 + c * 0.3
-                    for p, c in zip(previous, landmarks)
-                ]
-
-            processed.append(landmarks)
-            previous = landmarks
-
-        return processed, valid_count
+        return sequence, valid_count
 
     # ======================================================
-    # FEATURE ENGINEERING (CRITICAL FIX)
+    # FEATURE ENGINEERING (mirrors _build_sequence_features)
     # ======================================================
 
-    def build_features(self, seq):
+    def _build_sequence_features(self, sequence_array: np.ndarray) -> dict:
+        """Convert a (T x 63) frame sequence into one hybrid feature row.
 
-        if self.feature_names:
-            base_cols = self.feature_names[:63]
+        This is a line-for-line port of
+        SignLanguageRandomForest._build_sequence_features. A whole clip
+        becomes exactly ONE feature vector, matching how the model was
+        trained (one row per video, not one row per frame).
+        """
+        T = sequence_array.shape[0]
+        feature_row: dict[str, float] = {}
+
+        # --- Static pose summary (mean / std / min / max per coordinate) ---
+        for idx, col in enumerate(LANDMARK_COLUMNS):
+            col_data = sequence_array[:, idx]
+            feature_row[f"mean_{col}"] = float(col_data.mean())
+            feature_row[f"std_{col}"] = float(col_data.std())
+            feature_row[f"min_{col}"] = float(col_data.min())
+            feature_row[f"max_{col}"] = float(col_data.max())
+
+        # --- Dynamic motion descriptors (inter-frame deltas) ---------------
+        if T > 1:
+            diffs = np.diff(sequence_array, axis=0)
+            frame_norms = np.linalg.norm(diffs, axis=1)
+            feature_row["motion_energy"] = float(np.mean(frame_norms))
+            feature_row["motion_variability"] = float(np.std(frame_norms))
+            feature_row["start_end_drift"] = float(
+                np.linalg.norm(sequence_array[-1] - sequence_array[0])
+            )
+            for idx, col in enumerate(LANDMARK_COLUMNS):
+                feature_row[f"delta_mean_{col}"] = float(diffs[:, idx].mean())
+                feature_row[f"delta_std_{col}"] = float(diffs[:, idx].std())
         else:
-            base_cols = [f"f{i}" for i in range(63)]
+            feature_row["motion_energy"] = 0.0
+            feature_row["motion_variability"] = 0.0
+            feature_row["start_end_drift"] = 0.0
+            for col in LANDMARK_COLUMNS:
+                feature_row[f"delta_mean_{col}"] = 0.0
+                feature_row[f"delta_std_{col}"] = 0.0
 
-        df = pd.DataFrame(seq, columns=base_cols)
+        # --- Temporal segments ----------------------------------------------
+        if T < NUM_SEGMENTS:
+            repeats = -(-NUM_SEGMENTS // T)  # ceiling division
+            padded = np.tile(sequence_array, (repeats, 1))[:NUM_SEGMENTS]
+            split_source = padded
+        else:
+            split_source = sequence_array
 
-        for axis in ("x", "y", "z"):
+        for seg_idx, segment in enumerate(np.array_split(split_source, NUM_SEGMENTS)):
+            for idx, col in enumerate(LANDMARK_COLUMNS):
+                feature_row[f"segment{seg_idx + 1}_mean_{col}"] = float(segment[:, idx].mean())
 
-            cols = [c for c in df.columns if c.endswith(f"_{axis}")]
+        return feature_row
 
-            if cols:
-                df[f"mean_{axis}"] = df[cols].mean(axis=1)
-                df[f"std_{axis}"] = df[cols].std(axis=1).fillna(0)
-                df[f"max_{axis}"] = df[cols].max(axis=1)
-                df[f"min_{axis}"] = df[cols].min(axis=1)
+    # ======================================================
+    # FEATURE SELECTION (mirrors transform_features)
+    # ======================================================
 
-        # 🔥 CRITICAL FIX: enforce exact feature order
-        if self.feature_names:
-            df = df.reindex(columns=self.feature_names, fill_value=0)
+    def _select_features(self, X_raw: pd.DataFrame) -> pd.DataFrame:
+        """Apply the fitted two-stage selector saved in the model bundle.
 
-        return df
+        The old code built its own (unrelated) feature set and never
+        touched the selector at all, so the model was effectively being
+        fed the wrong number of columns in the wrong order.
+        """
+        if self.selector is None:
+            return X_raw.reindex(columns=self.feature_names, fill_value=0.0)
+
+        X_var = X_raw.reindex(columns=self.keep_var_cols, fill_value=0.0)
+        X_sel = self.selector.transform(X_var)
+        return pd.DataFrame(X_sel, columns=self.selected_feature_names)
 
     # ======================================================
     # PREDICTION
     # ======================================================
 
-    def predict_from_frames(self, frames):
+    def predict_from_frames(self, frames) -> tuple[int | None, float]:
+        """
+        Run the full clip -> single prediction pipeline.
 
-        seq, valid = self.extract_landmarks_from_frames(frames)
+        Returns (predicted_number, confidence). If too few frames had a
+        detectable hand, returns (None, 0.0) so callers can distinguish
+        "no hand detected" from a real (possibly low-confidence) prediction.
+        """
+        sequence, valid = self._extract_sequence(frames)
 
-        if len(seq) < 5 or valid < 3:
+        if valid < 3:
             return None, 0.0
 
-        X_df = self.build_features(seq)
+        sequence_array = np.asarray(sequence, dtype=np.float32)
 
-        X = X_df
-
-        if self.scaler is not None:
-            X_scaled = self.scaler.transform(X_df)
-            X = pd.DataFrame(
-                X_scaled,
-                columns=X_df.columns
-            )
-
-    # --------------------------------------------------
-    # Aggregate probabilities over all frames
-    # --------------------------------------------------
+        raw_row = self._build_sequence_features(sequence_array)
+        X_raw = pd.DataFrame([raw_row]).reindex(columns=self.feature_names, fill_value=0.0)
+        X = self._select_features(X_raw)
 
         if hasattr(self.model, "predict_proba"):
+            probs = self.model.predict_proba(X)[0]
+            best_idx = int(np.argmax(probs))
+            confidence = float(probs[best_idx])
+            encoded_pred = self.model.classes_[best_idx]
+        else:
+            encoded_pred = self.model.predict(X)[0]
+            confidence = 0.70  # no probability estimate available
 
-            probs = self.model.predict_proba(X)
-
-            avg_probs = probs.mean(axis=0)
-
-            best_idx = np.argmax(avg_probs)
-
-            confidence = float(avg_probs[best_idx])
-
-            pred = self.model.classes_[best_idx]
-
-            if self.label_encoder is not None:
-                pred = self.label_encoder.inverse_transform([pred])[0]
-
-            return int(pred), confidence
-
-    # --------------------------------------------------
-    # Fallback
-    # --------------------------------------------------
-
-        preds = self.model.predict(X)
-
-        if self.label_encoder is not None:
-            preds = self.label_encoder.inverse_transform(preds)
-
-        unique, counts = np.unique(preds, return_counts=True)
-
-        best_label = int(unique[np.argmax(counts)])
-
-        confidence = counts.max() / counts.sum()
-
-        return best_label, float(confidence)
-
-    # ======================================================
-    # CONFIDENCE (RF FIXED)
-    # ======================================================
-
-    def _confidence(self, X):
-
-        try:
-
-            if hasattr(self.model, "predict_proba"):
-
-                probs = self.model.predict_proba(X)
-
-                avg_probs = probs.mean(axis=0)
-
-                return float(np.max(avg_probs))
-
-        except Exception:
-            pass
-
-        return 0.70
+        pred = self.label_encoder.inverse_transform([encoded_pred])[0]
+        return int(pred), confidence
 
 
 # ==========================================================
@@ -242,14 +311,20 @@ class InferenceManager:
         "40-50": "40-50_numbers_rf_model.joblib",
     }
 
+    MODEL_RANGES = {
+        "0-9": (0, 9),
+        "10-19": (10, 19),
+        "20-29": (20, 29),
+        "30-39": (30, 39),
+        "40-50": (40, 50),
+    }
+
     SAMPLE_FPS = 10
 
     def __init__(self, models_dir: Path):
-
-        self.models = {}
+        self.models: dict[str, SignNumberInference] = {}
 
         for key, file in self.MODEL_FILES.items():
-
             path = models_dir / file
 
             if not path.exists():
@@ -257,19 +332,9 @@ class InferenceManager:
 
             self.models[key] = SignNumberInference(path)
 
-    @staticmethod
-    def prediction_belongs_to_model(pred, model_key):
-
-        ranges = {
-            "0-9": (0, 9),
-            "10-19": (10, 19),
-            "20-29": (20, 29),
-            "30-39": (30, 39),
-            "40-50": (40, 50),
-        }
-
-        low, high = ranges[model_key]
-
+    @classmethod
+    def prediction_belongs_to_model(cls, pred: int, model_key: str) -> bool:
+        low, high = cls.MODEL_RANGES[model_key]
         return low <= pred <= high
 
     # ======================================================
@@ -277,8 +342,7 @@ class InferenceManager:
     # ======================================================
 
     @staticmethod
-    def decode_base64_video(video_base64):
-
+    def decode_base64_video(video_base64: str):
         payload = video_base64.split(",", 1)[1] if "," in video_base64 else video_base64
         video_bytes = base64.b64decode(payload)
 
@@ -309,22 +373,26 @@ class InferenceManager:
         return frames
 
     # ======================================================
-    # MAIN PREDICTION
+    # MAIN PREDICTION — used by /predict-number
     # ======================================================
 
-    def predict_video(self, video_base64):
-
+    def predict_video(self, video_base64: str) -> PredictionResult | None:
+        """
+        Decode the video once, then let every range model score the SAME
+        clip and keep the highest-confidence prediction whose value
+        actually falls inside that model's own number range (guards
+        against a model confidently predicting a number outside its
+        training range, e.g. the "20-29" model outputting 5).
+        """
         frames = self.decode_base64_video(video_base64)
 
         if len(frames) < 10:
             return None
 
-        results = []
+        results: list[PredictionResult] = []
 
         for key, model in self.models.items():
-
             try:
-
                 pred, conf = model.predict_from_frames(frames)
 
                 if pred is None:
@@ -347,20 +415,28 @@ class InferenceManager:
         if not results:
             return None
 
-        results.sort(
-            key=lambda r: r.confidence,
-            reverse=True
-        )
+        results.sort(key=lambda r: r.confidence, reverse=True)
 
         print("\n===== MODEL RESULTS =====")
-
         for r in results:
             print(
                 f"{r.model_key} | "
                 f"Prediction={r.predicted_number} | "
                 f"Confidence={r.confidence:.4f}"
             )
-
         print("=========================\n")
 
         return results[0]
+
+    # ======================================================
+    # TARGETED PREDICTION — used by /activity/validate-answer
+    # when the expected answer (and therefore the correct
+    # range model) is already known.
+    # ======================================================
+
+    def predict_with_model(self, model_key: str, video_base64: str) -> tuple[int | None, float]:
+        if model_key not in self.models:
+            raise ValueError(f"Unknown model_key: {model_key}")
+
+        frames = self.decode_base64_video(video_base64)
+        return self.models[model_key].predict_from_frames(frames)

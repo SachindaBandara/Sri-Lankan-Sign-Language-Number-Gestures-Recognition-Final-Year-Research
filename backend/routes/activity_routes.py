@@ -4,7 +4,7 @@ from routes.prediction_routes import inference_manager
 from utils.activity_engine import (
     generate_question,
     validate_answer,
-    get_model_key_for_number
+    get_model_key_for_number,
 )
 
 activity_bp = Blueprint("activity", __name__)
@@ -49,8 +49,10 @@ def validate_activity_answer():
     except Exception:
         return jsonify({"error": "left and right must be integers"}), 400
 
+    confidence = None
+
     # --------------------------------------------------
-    # If ML prediction not provided → run inference
+    # If ML prediction not provided -> run inference
     # --------------------------------------------------
     if predicted_number is None:
         if not frame_base64:
@@ -58,20 +60,26 @@ def validate_activity_answer():
 
         try:
             expected = validate_answer(operation, left, right, 0)["expected_answer"]
-
             model_key = get_model_key_for_number(expected)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
 
-            result = inference_manager.models[model_key].predict_from_frames(
-                inference_manager.decode_base64_video(frame_base64)
-            )
-
-            if result is None:
-                return jsonify({"error": "No hand landmarks detected"}), 422
-
-            predicted_number = result[0]
-
+        try:
+            # predict_from_frames / predict_with_model always returns a
+            # (predicted_number, confidence) tuple — it never returns a bare
+            # None. The old code checked `if result is None`, which never
+            # fired, so a failed detection ((None, 0.0)) fell through and
+            # crashed on int(None) further down instead of returning a
+            # clean 422.
+            pred, conf = inference_manager.predict_with_model(model_key, frame_base64)
         except Exception as exc:
             return jsonify({"error": str(exc)}), 400
+
+        if pred is None:
+            return jsonify({"error": "No hand landmarks detected"}), 422
+
+        predicted_number = pred
+        confidence = conf
 
     # --------------------------------------------------
     # VALIDATION
@@ -80,5 +88,8 @@ def validate_activity_answer():
         result = validate_answer(operation, left, right, int(predicted_number))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+
+    if confidence is not None:
+        result["confidence"] = round(confidence, 4)
 
     return jsonify(result)

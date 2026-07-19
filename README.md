@@ -1,132 +1,48 @@
-# Sri Lankan Sign Language Number Gestures Recognition
+# 🎯 Sri Lankan Sign Language — Number Gestures Recognition
 
-A full-stack web application for recognizing Sri Lankan Sign Language number gestures from a webcam feed and supporting arithmetic practice with activity-based feedback.
+A playful, accessible web app that recognizes Sri Lankan Sign Language (SLSL) number gestures (0–50) via webcam and turns recognition into arithmetic practice for learners.
 
-## Highlights
+![demo-placeholder](assets/demo-placeholder.gif)
 
-- Real-time webcam-based number recognition for numbers 0 to 50
-- Arithmetic activity practice for addition, subtraction, multiplication, and division
-- Activity report page with question, correct answer, submitted answer, result, and points
-- English and Sinhala language support
-- Kid-friendly UI mode for a more playful learning experience
-- Live camera preview with recording overlay and processing feedback
+Badges
 
-## Tech Stack
+- Build: ![status](https://img.shields.io/badge/build-local-lightgrey)
+- Python: ![python](https://img.shields.io/badge/python-3.9%2B-blue)
+- License: ![license](https://img.shields.io/badge/license-MIT-green)
 
-- Frontend: React, Vite, Tailwind CSS, React Router
-- Backend: Flask, Flask-CORS
-- Computer vision: MediaPipe, OpenCV
-- Model/runtime: NumPy, Pandas, Joblib
+Why this project
 
-## Project Structure
+- Bridges accessibility and education — teaches numbers and arithmetic using natural sign language input.
+- Designed for classrooms and home practice — kid-friendly UI and localized Sinhala support.
 
-```text
-Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research/
-├─ backend/
-│  ├─ app.py
-│  ├─ run.py
-│  ├─ requirements.txt
-│  ├─ app/
-│  │  ├─ routes/
-│  │  ├─ services/
-│  │  └─ utils/
-│  ├─ routes/
-│  │  ├─ __init__.py
-│  │  ├─ activity_routes.py
-│  │  └─ prediction_routes.py
-│  └─ utils/
-│     ├─ __init__.py
-│     ├─ activity_engine.py
-│     └─ inference_engine.py
-├─ frontend/
-│  ├─ index.html
-│  ├─ package.json
-│  ├─ postcss.config.js
-│  ├─ tailwind.config.js
-│  ├─ vite.config.js
-│  └─ src/
-│     ├─ App.jsx
-│     ├─ main.jsx
-│     ├─ styles.css
-│     ├─ components/
-│     │  ├─ LanguageSelector.jsx
-│     │  ├─ WebcamRecorder.jsx
-│     │  └─ ui/
-│     ├─ i18n/
-│     │  ├─ en.json
-│     │  ├─ index.jsx
-│     │  └─ si.json
-│     ├─ lib/
-│     │  └─ utils.js
-│     ├─ pages/
-│     │  ├─ ActivitiesPage.jsx
-│     │  ├─ ActivityPage.jsx
-│     │  ├─ ActivityReportPage.jsx
-│     │  ├─ HomePage.jsx
-│     │  └─ NumberIdentificationPage.jsx
-│     └─ services/
-│        └─ api.js
-├─ models/
-│  ├─ 0-9_numbers_rf_model.joblib
-│  ├─ 10-19_numbers_rf_model.joblib
-│  ├─ 20-29_numbers_rf_model.joblib
-│  ├─ 30-39_numbers_rf_model.joblib
-│  └─ 40-50_numbers_rf_model.joblib
-└─ LICENSE
-```
+Quick jump
 
-## Repository Map
+- App entry (frontend): `frontend/`
+- API entry (backend): `backend/run.py`
+- Models: `models/` (joblib files for number ranges)
+- Developer doc: `docs/DETAILED_README.md`
 
-| Area | Purpose |
-| --- | --- |
-| backend/ | Flask API, inference engine, and arithmetic activity logic |
-| frontend/ | React application, UI components, translation files, and pages |
-| models/ | Trained gesture recognition models used by the backend |
-| README.md | Project overview, setup guide, API reference, and usage notes |
-| LICENSE | Open-source license terms for reuse and distribution |
+**Highlights**
 
-## Prerequisites
+- Instant number recognition for 0–50 using webcam
+- Interactive arithmetic activities (addition, subtraction, multiplication, division)
+- Per-attempt feedback and activity reports (stored client-side)
+- Sinhala and English localization
+- Small footprint inference (scikit-learn RandomForest models)
 
-- Python 3.9 or newer
-- Node.js 18 or newer
-- npm
-- A webcam
-- A browser that allows camera access on localhost
+Live demo (local)
 
-## Setup
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/SachindaBandara/Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research.git
-cd Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research
-```
-
-### 2. Start the backend
-
-```bash
-cd backend
-python -m venv .venv
-```
-
-PowerShell:
+1. Start backend (PowerShell):
 
 ```powershell
+cd backend
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-Install dependencies and run the API:
-
-```bash
 pip install -r requirements.txt
 python run.py
 ```
 
-The Flask server runs at `http://localhost:5000`.
-
-### 3. Start the frontend
-
-Open a second terminal:
+2. Start frontend:
 
 ```bash
 cd frontend
@@ -134,120 +50,227 @@ npm install
 npm run dev
 ```
 
-The Vite app usually runs at `http://localhost:5173`.
+Open the Vite URL (usually `http://localhost:5173`) and allow the camera.
 
-## Usage
+**Creative UX ideas included in the app**
 
-1. Open the frontend in your browser.
-2. Allow camera access.
-3. Use the Number Identification page to record a gesture and predict the number.
-4. Use the Activities page to practice arithmetic with sign gestures.
-5. Open the Activity Report page to review performance history.
+- Kid Mode: colorful cards, friendly sounds, animation on correct answers
+- Recording overlay shows processing state (analyzing / confident / retry)
+- Activity report with point totals and history chart
+
+Architecture (overview)
+
+```mermaid
+flowchart LR
+  A[Browser / Frontend] -->|video/webm base64| B[Flask API `/predict-number`]
+  B --> C[Frame extraction]
+  C --> D[MediaPipe Hand Landmark]
+  D --> E[Feature normalization]
+  E --> F{Model selector}
+  F -->|0-9| G[0-9 RF model]
+  F -->|10-19| H[10-19 RF model]
+  F --> I[Aggregate & Smooth]
+  I --> J[Response JSON]
+```
 
 
 ## Backend API
 
-### GET /health
+This project provides a small REST API implemented with Flask. Primary endpoints below — check the route files under `backend/routes/` for exact implementations and any optional query parameters.
 
-Returns server health status.
+- GET `/health`
+  - Purpose: quick liveness check for orchestration and local dev.
+  - Response: `{ "status": "ok" }`
 
-Example response:
-
-```json
-{ "status": "ok" }
-```
-
-### POST /predict-number
-
-Predicts a number from a webcam video payload.
-
-Example request:
-
-```json
-{
-  "video": "data:video/webm;base64,..."
-}
-```
-
-Example response:
+- POST `/predict-number`
+  - Purpose: receive a recorded gesture (video) and return a predicted number with confidence and model info.
+  - Request body: JSON with `video` (data URL `data:video/webm;base64,...`) and optional `sample_rate` (frames/sec to sample).
+  - Response example:
 
 ```json
 {
   "predicted_number": 17,
   "model_key": "10-19",
-  "confidence": 0.92
+  "confidence": 0.92,
+  "frame_count": 18
 }
 ```
 
-### POST /activity/generate-question
+- POST `/activity/generate-question`
+  - Purpose: create an arithmetic question for practice.
+  - Request body: `{ "operation": "addition" }` (operations: `addition`, `subtraction`, `multiplication`, `division`).
 
-Generates a new arithmetic question.
+- POST `/activity/validate-answer`
+  - Purpose: validate a submitted (predicted) answer for an activity question.
+  - Request body: `{ "operation": "addition", "left": 7, "right": 3, "predicted_number": 10 }`
+  - Response includes correctness, expected and predicted answers, and optional points awarded.
 
-Example request:
+## Models & How They Work
 
-```json
-{
-  "operation": "addition"
-}
+- Location: `models/` — five `joblib` files covering contiguous numeric ranges (0–9, 10–19, ... 40–50).
+- Input: flattened feature vectors derived from MediaPipe hand landmarks per frame; features include normalized (x,y,z) coordinates and engineered angle/distance features.
+- Inference strategy: per-frame predictions are made, then aggregated (temporal smoothing / majority vote) to yield the final number and confidence. Model selection uses filename heuristics and internal routing in `backend/utils/inference_engine.py`.
+
+## Tech Stack
+
+- Frontend: React (JSX), Vite dev server, Tailwind CSS for styles.
+- Backend: Flask with CORS enabled for local development.
+- Vision & features: OpenCV for video/frame handling, MediaPipe for hand landmark detection.
+- Models: scikit-learn RandomForest saved with Joblib; NumPy / Pandas used for data handling.
+
+## Project Structure
+
+Top-level layout and responsibilities:
+
+- `backend/` — Flask app, routes, and utilities (inference and activity engines).
+- `frontend/` — Vite + React application, components, styles, and i18n resources.
+- `models/` — trained model artifacts (`.joblib`).
+- `docs/` — developer documentation and detailed notes.
+
+Example important files:
+
+- `backend/run.py` — server entrypoint
+- `backend/app.py` — app & blueprint registration
+- `backend/routes/prediction_routes.py` — prediction endpoint
+- `backend/utils/inference_engine.py` — preprocessing + model orchestration
+- `frontend/src/components/WebcamRecorder.jsx` — camera capture & recording
+- `frontend/src/services/api.js` — API wrapper and base URL
+
+## Folder & file structure
+
+A detailed tree of the repository (top-level files and important folders):
+
+```
+Sri-Lankan-Sign-Language-Number-Gestures-Recognition-Final-Year-Research/
+├─ backend/
+│  ├─ run.py
+│  ├─ app.py
+│  ├─ requirements.txt
+│  ├─ routes/
+│  │  ├─ __init__.py
+│  │  ├─ prediction_routes.py
+│  │  └─ activity_routes.py
+│  └─ utils/
+│     ├─ __init__.py
+│     ├─ inference_engine.py
+│     └─ activity_engine.py
+├─ frontend/
+│  ├─ index.html
+│  ├─ package.json
+│  ├─ vite.config.js
+│  └─ src/
+│     ├─ main.jsx
+│     ├─ App.jsx
+│     ├─ styles.css
+│     ├─ components/
+│     │  ├─ WebcamRecorder.jsx
+│     │  └─ LanguageSelector.jsx
+│     ├─ pages/
+│     │  ├─ NumberIdentificationPage.jsx
+│     │  ├─ ActivitiesPage.jsx
+│     │  └─ ActivityReportPage.jsx
+│     ├─ services/
+│     │  └─ api.js
+│     └─ i18n/
+│        ├─ index.jsx
+│        ├─ en.json
+│        └─ si.json
+├─ models/
+│  ├─ 0-9_numbers_rf_model.joblib
+│  ├─ 10-19_numbers_rf_model.joblib
+│  ├─ 20-29_numbers_rf_model.joblib
+│  ├─ 30-39_numbers_rf_model.joblib
+│  └─ 40-50_numbers_rf_model.joblib
+├─ docs/
+│  └─ DETAILED_README.md
+├─ README.md
+└─ LICENSE
 ```
 
-Example response:
+Key file purposes:
 
-```json
-{
-  "operation": "addition",
-  "left": 7,
-  "right": 3,
-  "operator": "+",
-  "answer": 10
-}
+- `backend/run.py`: starts the Flask server (dev mode).
+- `backend/routes/prediction_routes.py`: receives `video` payloads and returns predictions.
+- `backend/utils/inference_engine.py`: frame extraction, MediaPipe landmarks, feature normalization, model loading and prediction aggregation.
+- `backend/utils/activity_engine.py`: arithmetic question generation and validation logic.
+- `frontend/src/components/WebcamRecorder.jsx`: handles getUserMedia, recording, and sending video to API.
+- `frontend/src/services/api.js`: central API wrapper and base URL configuration.
+
+
+## Repository Map
+
+This repository maps responsibilities so contributors know where to look:
+
+- backend/: API, inference, activity logic, model-loading — focused on server-side processing.
+- frontend/: UI, camera handling, localization, activity UX — responsible for reporting and local storage of attempts.
+- models/: trained artifacts that the backend expects by filename.
+- docs/: detailed design notes and development guidance.
+
+## Prerequisites
+
+- Python 3.9 or newer (recommended: 3.10+)
+- Node.js 18+ and npm (or yarn)
+- A webcam and a modern browser (Chrome, Edge, Firefox) with camera support on localhost
+- Optional: `ffmpeg` (if you need to inspect or re-encode sample videos)
+
+## Setup
+
+1) Backend (PowerShell / Windows example)
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python run.py
 ```
 
-### POST /activity/validate-answer
+2) Frontend
 
-Validates a submitted answer.
-
-Example request:
-
-```json
-{
-  "operation": "addition",
-  "left": 7,
-  "right": 3,
-  "predicted_number": 10
-}
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-Example response:
+3) Configuration
 
-```json
-{
-  "left": 7,
-  "right": 3,
-  "operator": "+",
-  "expected_answer": 10,
-  "predicted_answer": 10,
-  "is_correct": true
-}
-```
+- API base URL is configured in `frontend/src/services/api.js`; change it if your backend runs on a different host or port.
 
 ## Notes
 
-- The frontend currently points to http://localhost:5000 in frontend/src/services/api.js.
-- The model files must stay in the models/ folder with the expected filenames.
-- Camera access generally works only on localhost or HTTPS.
-- Activity attempts are stored in the browser and displayed on the report page.
+- Models: keep the `models/` directory intact; `inference_engine` loads models by expected filenames.
+- Camera access: browsers allow camera only on `localhost` or secure contexts (HTTPS).
+- Activity persistence: activity attempts are stored client-side (localStorage) for privacy and simplicity.
 
 ## Troubleshooting
 
-- Camera not starting: check browser permissions and make sure no other app is using the webcam.
-- Prediction not working: confirm the backend is running and the model files are present.
-- API errors: verify the frontend API base URL and backend port.
+- Camera doesn't start: check browser permission prompt and close other apps using the camera.
+- MediaPipe not detecting hand: ensure good lighting, remove background clutter, and hold the hand steady for a second.
+- Prediction output is inconsistent: increase `sample_rate` when sending videos, or record a slightly longer clip. Also verify backend logs for `inference_engine` warnings.
+- CORS errors: ensure backend is running and `Flask-CORS` is enabled; check console for the failing endpoint URL.
 
-## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+Roadmap (ideas)
 
-## Author
+- Add continuous-learning mode (user feedback loop to improve models)
+- Replace RF with a temporal deep model (1D-CNN / LSTM) for sequence modeling
+- Add server-side attempt storage and user accounts for long-term tracking
 
-Sachinda Bandara
+Contributing
+
+1. Fork, branch, and open a PR.
+2. Keep changes focused; add tests for backend logic when possible.
+3. Update `docs/DETAILED_README.md` if you change the inference pipeline.
+
+License & credits
+
+- MIT License — see `LICENSE`.
+- Author: Sachinda Bandara — contact via repository issues.
+
+Need more? I can:
+
+- Add a production-ready `Dockerfile` and `docker-compose.yml` to run backend+frontend.
+- Create a small test video payload and a `tests/` integration script to validate predictions.
+
+Tell me which next step you'd like and I'll implement it.

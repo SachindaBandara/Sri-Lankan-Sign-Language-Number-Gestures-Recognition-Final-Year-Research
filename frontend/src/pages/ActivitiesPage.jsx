@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import ActivityPage from "./ActivityPage";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { Tabs, TabsContent } from "../components/ui/tabs";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "../i18n";
 import { Plus, Minus, X, Divide } from "lucide-react";
 
@@ -15,21 +16,30 @@ export default function ActivitiesPage() {
     { key: "division", label: t("activity.division") || "Division", icon: Divide },
   ];
 
-  const [active, setActive] = useState("addition");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initial = searchParams.get("tab") || "addition";
+  const [active, setActive] = useState(initial);
+
+  // keep URL in sync when the active tab changes
+  const handleChange = (value) => {
+    setActive(value);
+    try {
+      searchParams.set("tab", value);
+      setSearchParams(searchParams, { replace: true });
+    } catch {}
+  };
+
+  // keep local active in sync when header nav (which updates the URL) changes
+  useEffect(() => {
+    const current = searchParams.get("tab") || "addition";
+    if (current !== active) setActive(current);
+  }, [searchParams]);
 
   return (
-    <Tabs value={active} onValueChange={setActive}>
-      <TabsList className="mb-4 bg-white shadow-sm">
-          {ACTIVITY_MODULES.map((module) => (
-            <TabsTrigger key={module.key} value={module.key}>
-              <module.icon className="h-4 w-4 mr-2" />
-              {module.label}
-            </TabsTrigger>
-          ))}
-      </TabsList>
+    <Tabs value={active} onValueChange={handleChange}>
       {ACTIVITY_MODULES.map((module) => (
         <TabsContent key={module.key} value={module.key}>
-            <ActivityPage operation={module.key} title={`${module.label}`} icon={module.icon} />
+          <ActivityPage operation={module.key} title={`${module.label}`} icon={module.icon} />
         </TabsContent>
       ))}
     </Tabs>

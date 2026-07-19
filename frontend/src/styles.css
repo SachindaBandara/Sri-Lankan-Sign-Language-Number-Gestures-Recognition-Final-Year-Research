@@ -5,6 +5,10 @@
 body {
   margin: 0;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  background: #f8fafc;
+  /* subtle patterned background using an embedded SVG data URI */
+  background-color: #f8fafc;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='800' viewBox='0 0 1200 800'><rect width='1200' height='800' fill='%23f8fafc'/><defs><pattern id='p' x='0' y='0' width='40' height='40' patternUnits='userSpaceOnUse'><circle cx='2' cy='2' r='1.5' fill='%23e6eefc' opacity='0.9'/></pattern></defs><rect width='1200' height='800' fill='url(%23p)' opacity='0.6'/></svg>");
+  background-size: cover;
+  background-attachment: fixed;
   color: #0f172a;
 }

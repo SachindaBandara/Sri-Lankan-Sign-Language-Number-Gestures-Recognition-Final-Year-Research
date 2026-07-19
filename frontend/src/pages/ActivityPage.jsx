@@ -43,8 +43,24 @@ export default function ActivityPage({ operation, title, icon }) {
   const loadProblem = async () => {
     setError("");
     setResult(null);
+    const storageKey = `activity-current-problem-${operation}`;
+    // If a saved problem exists for this operation, load it (persist across navigation/refresh)
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setProblem(parsed);
+        return;
+      } catch {
+        // fall through to fetch a new problem
+      }
+    }
+
     const data = await generateQuestion(operation);
     setProblem(data);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    } catch {}
   };
 
   useEffect(() => {
@@ -159,13 +175,37 @@ export default function ActivityPage({ operation, title, icon }) {
                   {t("activity.score")} : {score.correct}/{score.total}
                 </p>
 
-                <Button
-                  className="mt-4"
-                  onClick={submitLiveAnswer}
-                  disabled={livePrediction === "--" || loading}
-                >
-                  {t("activity.submit")}
-                </Button>
+                {!result ? (
+                  <Button
+                    className="mt-4 w-full sm:w-auto"
+                    onClick={submitLiveAnswer}
+                    disabled={livePrediction === "--" || loading}
+                  >
+                    {t("activity.submit")}
+                  </Button>
+                ) : (
+                  <Button
+                    className="mt-4 w-full sm:w-auto"
+                    onClick={async () => {
+                      // clear previous result and force-load a new problem
+                      setResult(null);
+                      setLivePrediction("--");
+                      setLoading(true);
+                      try {
+                        const data = await generateQuestion(operation);
+                        setProblem(data);
+                        const storageKey = `activity-current-problem-${operation}`;
+                        try { localStorage.setItem(storageKey, JSON.stringify(data)); } catch {}
+                      } catch (err) {
+                        setError(err.message);
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    {t("activity.next")}
+                  </Button>
+                )}
               </>
             )}
 
@@ -193,21 +233,40 @@ export default function ActivityPage({ operation, title, icon }) {
         </Alert>
       )}
 
-      {/* NEXT */}
-      <Button
-        variant="secondary"
-        onClick={() => loadProblem().catch(setError)}
-      >
-        <RefreshCw className="h-4 w-4 mr-2" />
-        {t("activity.next")}
-      </Button>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Button
+          variant="secondary"
+          onClick={async () => {
+            // Force-generate a new problem and persist it
+            setError("");
+            setResult(null);
+            setLivePrediction("--");
+            setLoading(true);
+            try {
+              const data = await generateQuestion(operation);
+              setProblem(data);
+              const storageKey = `activity-current-problem-${operation}`;
+              try { localStorage.setItem(storageKey, JSON.stringify(data)); } catch {}
+            } catch (err) {
+              setError(err.message);
+            } finally {
+              setLoading(false);
+            }
+          }}
+          disabled={loading}
+          className="w-full sm:w-auto"
+        >
+          {t("activity.next")}
+        </Button>
 
-      <Button
-        variant="outline"
-        onClick={() => navigate("/activity-report")}
-      >
-        {t("activity.report") || "View report"}
-      </Button>
+        <Button
+          variant="outline"
+          onClick={() => navigate("/activity-report")}
+          className="w-full sm:w-auto"
+        >
+          {t("activity.report") || "View report"}
+        </Button>
+      </div>
     </section>
   );
 }

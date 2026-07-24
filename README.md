@@ -157,10 +157,10 @@ Each model receives flattened feature vectors derived from MediaPipe hand landma
 
 | Layer | Technologies |
 |---|---|
-| Frontend | React (JSX), Vite, Tailwind CSS |
-| Backend | Flask, Flask-CORS |
-| Vision | OpenCV, MediaPipe |
-| Models | scikit-learn RandomForest, Joblib, NumPy, Pandas |
+| Frontend | React 18.3.1, Vite 5.4.10, Tailwind CSS 3.4.14, React Router DOM 7.14.2 |
+| Backend | Flask 3.0.3, Flask-CORS 4.0.0, Python 3.9+ (validated with Python 3.11.4) |
+| Vision | OpenCV 4.13.0.92, MediaPipe Hands 0.10.14 |
+| Models | scikit-learn 1.5.2, NumPy 1.26.4, Pandas 2.2.2, Joblib 1.4.2 |
 
 ---
 
